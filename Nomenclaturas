@@ -1,0 +1,48 @@
+Nomenclaturas para tener una base de datos acorde:
+
+Generales:
+1) Si un nombre (tabla, campo, trigger, etc) tiene más de una palabra se escribirá un guión bajo para separarlas. Ej: from_date, to_date.
+2) Los nombres deben básicos deben estar en inglés. Ej: id, user_name, color.
+3) No utilizar acentos ni "ñ". No debería suceder ya que vamos a escribir en inglés.
+4) Se escribirá todo en minuscula excepto las tablas que serán CamelCase.
+
+Selects:
+1) Las palabras reservadas se escribirán siempre en mayúscula.
+2) Luego de cada palabra reservada haremos un salto de línea y luego respetaremos la identación.
+3) Si debemos meter campos o condiciones lo haremos siempre con una sangría.
+4) Los alias de las tablas serán mínimo 2 letras.
+5) Evitaremos siempre que se pueda el uso de IN y utilizaremos EXISTS (son más performantes).
+
+SELECT
+	sal.sale_id,
+	sal.price,
+	sal.quantity,
+	us.user_name
+FROM
+	Sales sal
+INNER JOIN
+	User us ON us.user_id = sal.user_id
+WHERE
+	EXISTS (
+        SELECT
+            1
+        FROM
+            Product pr
+        WHERE
+            pr.product_id = sal.product_id
+            AND pr.color = 'Red'
+    );
+
+Tablas:
+1) Sus nombres serán SIEMPRE en SINGULAR.
+2) Vamos a escribir los nombres de las tablas con la primer letra en mayúscula. Ej: Sale, User, Product.
+3) Los campos que sean PK y FK empezarán con el nombre de la tabla, y terminarán con un _id. Ej: sale_id, user_id, product_id.
+
+Triggers:
+1) Los nombres de los triggers empezarán con un tr_, continuará con las 3 primeras letras del verbo (ins, upd o del), seguido de la tabla y luego una aclaración de lo que va a hacer Ej: tr_ins_User_charge_dates, tr_upd_Rate_update_base_currency
+
+Constraints:
+1) Los constraint empezarán aclarando si es una PK, FK, si es un CHECK (CH), UNIQUE (UN), y DEFAULT (DF). Luego de aclarar si es una PK o FK, pondremos el nombre del campo y luego un resumen empezando con mayúscula (si es una sola palabra, mejor). Ej: pk_document_id_identificator, ch_from_date_minimum, un_secondary_code_Unique, df_color_Red
+
+Stored Procedures:
+1) Empezarán con un sp_, y luego resumiremos lo que va a hacer sp_<verbo><tabla><aclaración si es que se necesita>. Ej: sp_get_Rate
