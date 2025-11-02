@@ -1,6 +1,61 @@
 USE Com2900G05;
 GO
 
+-- Crear los esquemas necesarios
+
+IF EXISTS (SELECT * FROM sys.schemas WHERE name = 'prod')
+    DECLARE @schema SYSNAME = 'prod';
+    DECLARE @sql NVARCHAR(MAX) = N'';
+
+    -- Eliminar claves foráneas del esquema
+    SELECT @sql = @sql + 'ALTER TABLE [' + s.name + '].[' + t.name + '] DROP CONSTRAINT [' + fk.name + '];' + CHAR(13)
+    FROM sys.foreign_keys fk
+    JOIN sys.tables t ON fk.parent_object_id = t.object_id
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = @schema;
+
+    -- Eliminar tablas del esquema
+    SELECT @sql = @sql + 'DROP TABLE [' + s.name + '].[' + t.name + '];' + CHAR(13)
+    FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = @schema;
+
+    -- Eliminar el esquema
+    SET @sql = @sql + 'DROP SCHEMA [' + @schema + '];';
+
+    EXEC sp_executesql @sql; 
+GO
+
+CREATE SCHEMA prod;
+GO
+
+IF EXISTS (SELECT * FROM sys.schemas WHERE name = 'import')
+    DECLARE @schema SYSNAME = 'import';
+    DECLARE @sql NVARCHAR(MAX) = N'';
+
+    -- Eliminar claves foráneas del esquema
+    SELECT @sql = @sql + 'ALTER TABLE [' + s.name + '].[' + t.name + '] DROP CONSTRAINT [' + fk.name + '];' + CHAR(13)
+    FROM sys.foreign_keys fk
+    JOIN sys.tables t ON fk.parent_object_id = t.object_id
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = @schema;
+
+    -- Eliminar tablas del esquema
+    SELECT @sql = @sql + 'DROP TABLE [' + s.name + '].[' + t.name + '];' + CHAR(13)
+    FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = @schema;
+
+    -- Eliminar el esquema
+    SET @sql = @sql + 'DROP SCHEMA [' + @schema + '];';
+
+    EXEC sp_executesql @sql;  
+
+GO
+
+CREATE SCHEMA import;
+GO
+
 -- PERSONA
 CREATE TABLE prod.Persona(
   persona_id INT IDENTITY(1,1) PRIMARY KEY,
@@ -9,7 +64,13 @@ CREATE TABLE prod.Persona(
   email VARCHAR(70) NULL,
   dni VARCHAR(10) NULL UNIQUE,
   telefono VARCHAR(15) NULL,
-  cbu_cvu CHAR(22) NULL
+  cbu_cvu CHAR(22) NULL,
+  CONSTRAINT CHK_persona_dni CHECK (
+        LEN(LTRIM(RTRIM(dni))) < 10 AND dni LIKE '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
+    ),
+  CONSTRAINT CHK_persona_email CHECK (
+        email LIKE '%_@__%.__%'
+    )
 );
 
 -- CONSORCIO
@@ -18,7 +79,13 @@ CREATE TABLE prod.Consorcio(
   nombre VARCHAR(50) NOT NULL,
   direccion VARCHAR(200) NOT NULL,
   cant_unidades INT NOT NULL,
-  cant_m2_total INT NOT NULL
+  cant_m2_total INT NOT NULL,
+  CONSTRAINT CHK_cant_unidades CHECK (
+        cant_unidades > 0
+    ),
+  CONSTRAINT CHK_cant_m2_total CHECK (
+        cant_m2_total > 0
+    )
 );
 
 -- UNIDAD FUNCIONAL
@@ -28,7 +95,16 @@ CREATE TABLE prod.UnidadFuncional(
   piso CHAR(2) NOT NULL,
   depto CHAR(1) NOT NULL,
   cant_m2 INT NOT NULL,
-  coeficiente DECIMAL(4,2) NOT NULL
+  coeficiente DECIMAL(4,2) NOT NULL,
+  CONSTRAINT CHK_piso CHECK (
+        piso LIKE '[0-9][0-9]'
+    ),
+  CONSTRAINT CHK_depto CHECK (
+        depto LIKE '[A-Z]'
+    ),
+  CONSTRAINT CHK_cant_m2 CHECK (
+        cant_m2 > 0
+    )
 );
 
 -- UNIDAD ACCESORIA (si aplica)
