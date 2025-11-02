@@ -273,6 +273,31 @@ CREATE TABLE prod.Mora(
     CONSTRAINT CK_Mora_Importe CHECK (importe >= 0)
 );
 GO
+/* =========================
+   12) PROVEEDOR
+   ========================= */
+IF OBJECT_ID('prod.Proveedor','U') IS NOT NULL DROP TABLE prod.Proveedor;
+GO
+CREATE TABLE prod.Proveedor(
+  proveedor_id INT IDENTITY(1,1) PRIMARY KEY,
+  nombre VARCHAR(200) NOT NULL,
+  CONSTRAINT UQ_Proveedor_Nombre UNIQUE(nombre)   -- evita duplicados por nombre
+);
+
+/* =========================
+   13) PROVEEDOR_CONSORCIO
+   ========================= */
+IF OBJECT_ID('prod.ProveedorConsorcio','U') IS NOT NULL DROP TABLE prod.ProveedorConsorcio;
+GO
+CREATE TABLE prod.ProveedorConsorcio(
+  pc_id INT IDENTITY(1,1) PRIMARY KEY,
+  proveedor_id  INT NOT NULL REFERENCES prod.Proveedor(proveedor_id),
+  consorcio_id  INT NOT NULL REFERENCES prod.Consorcio(consorcio_id),
+  tipo_gasto    VARCHAR(80)  NOT NULL,           -- “GASTOS BANCARIOS”, “SERVICIOS PUBLICOS”, etc.
+  referencia    VARCHAR(80)  NULL,               -- “Cuenta 195329”, “Limptech”, etc.
+  activo        BIT NOT NULL DEFAULT(1),
+  CONSTRAINT UQ_ProvCons UNIQUE(proveedor_id, consorcio_id, tipo_gasto, referencia)
+);
 
 -- indices utiles
 CREATE NONCLUSTERED INDEX IdX_UF_Consorcio ON prod.UnidadFuncional(consorcio_id);
@@ -298,3 +323,5 @@ CREATE NONCLUSTERED INDEX IdX_Expensa_Cons_Per ON prod.Expensa(consorcio_id, per
 CREATE UNIQUE NONCLUSTERED INDEX IdX_Factura_Nro ON prod.Factura(nro_comprobante) INCLUDE (fecha_emision, expensa_id, monto_total);
 
 CREATE NONCLUSTERED INDEX IdX_Factura_CAE ON prod.Factura(cae) INCLUDE (expensa_id, fecha_emision, monto_total);
+
+CREATE NONCLUSTERED INDEX IX_ProvCons_Consorcio_Tipo ON prod.ProveedorConsorcio(consorcio_id, tipo_gasto, proveedor_id) INCLUDE (referencia);
