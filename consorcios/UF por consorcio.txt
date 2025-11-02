@@ -1,0 +1,140 @@
+Nombre del consorcio	nroUnidadFuncional	Piso	departamento	coeficiente	m2_unidad_funcional	bauleras	cochera	m2_baulera	m2_cochera
+Azcuenaga	1	PB	A	4,4	45	SI	SI	4	8
+Azcuenaga	2	PB	B	4,4	45	SI	SI	4	8
+Azcuenaga	3	PB	C	4,4	45	SI	SI	4	8
+Azcuenaga	4	PB	D	4,4	45	SI	SI	4	8
+Azcuenaga	5	PB	E	4,4	45	SI	SI	4	8
+Azcuenaga	6	1	A	2,3	30	NO	NO	0	0
+Azcuenaga	7	1	B	2,3	30	NO	NO	0	0
+Azcuenaga	8	1	C	2,3	30	NO	NO	0	0
+Azcuenaga	9	1	D	2,7	30	SI	NO	4	0
+Azcuenaga	10	1	E	2,7	30	SI	NO	4	0
+Azcuenaga	11	2	A	2,6	33	NO	NO	0	0
+Azcuenaga	12	2	B	2,6	33	NO	NO	0	0
+Azcuenaga	13	2	C	2,6	33	NO	NO	0	0
+Azcuenaga	14	2	D	2,6	33	NO	NO	0	0
+Azcuenaga	15	2	E	2,6	33	NO	NO	0	0
+Azcuenaga	16	3	A	4,0	40	SI	SI	3	8
+Azcuenaga	17	3	B	4,0	40	SI	SI	3	8
+Azcuenaga	18	3	C	4,0	40	SI	SI	3	8
+Azcuenaga	19	3	D	4,0	40	SI	SI	3	8
+Azcuenaga	20	3	E	4,0	40	SI	SI	3	8
+Azcuenaga	21	4	A	3,9	45	SI	NO	5	0
+Azcuenaga	22	4	B	4,4	45	SI	SI	3	8
+Azcuenaga	23	4	C	4,1	45	NO	SI	0	8
+Azcuenaga	24	4	D	4,1	45	NO	SI	0	8
+Azcuenaga	25	4	E	4,4	45	SI	SI	3	8
+Azcuenaga	26	5	A	2,3	30	NO	NO	0	0
+Azcuenaga	27	5	B	2,3	30	NO	NO	0	0
+Azcuenaga	28	5	C	2,3	30	NO	NO	0	0
+Azcuenaga	29	5	D	2,3	30	NO	NO	0	0
+Azcuenaga	30	5	E	2,3	30	NO	NO	0	0
+Alzaga	1	PB	A	6,3	45	SI	SI	5	8
+Alzaga	2	PB	B	6,3	45	SI	SI	5	8
+Alzaga	3	PB	C	6,3	45	SI	SI	5	8
+Alzaga	4	PB	D	6,3	45	SI	SI	5	8
+Alzaga	5	PB	E	6,3	45	SI	SI	5	8
+Alzaga	6	1	A	3,6	30	SI	NO	3	0
+Alzaga	7	1	B	4,5	30	SI	SI	3	8
+Alzaga	8	1	C	4,2	30	NO	SI	0	8
+Alzaga	9	1	D	4,2	30	NO	SI	0	8
+Alzaga	10	1	E	4,5	30	SI	SI	3	8
+Alzaga	11	2	A	4,9	33	SI	SI	4	8
+Alzaga	12	2	B	4,9	33	SI	SI	4	8
+Alzaga	13	2	C	4,9	33	SI	SI	4	8
+Alzaga	14	2	D	4,9	33	SI	SI	4	8
+Alzaga	15	2	E	4,9	33	SI	SI	4	8
+Alzaga	16	3	A	4,4	40	NO	NO	0	0
+Alzaga	17	3	B	4,4	40	NO	NO	0	0
+Alzaga	18	3	C	4,4	40	NO	NO	0	0
+Alzaga	19	3	D	4,8	40	SI	NO	4	0
+Alzaga	20	3	E	4,8	40	SI	NO	4	0
+Alberdi	1	PB	A	4,5	35	NO	NO	0	0
+Alberdi	2	PB	B	4,5	35	NO	NO	0	0
+Alberdi	3	PB	C	4,5	35	NO	NO	0	0
+Alberdi	4	PB	D	4,5	35	NO	NO	0	0
+Alberdi	5	1	A	6,0	35	SI	SI	4	8
+Alberdi	6	1	B	6,0	35	SI	SI	4	8
+Alberdi	7	1	C	6,0	35	SI	SI	4	8
+Alberdi	8	1	D	6,0	35	SI	SI	4	8
+Alberdi	9	2	A	6,0	35	SI	SI	4	8
+Alberdi	10	2	B	4,5	35	NO	NO	0	0
+Alberdi	11	2	C	4,5	35	NO	NO	0	0
+Alberdi	12	2	D	4,5	35	NO	NO	0	0
+Alberdi	13	3	A	4,3	30	SI	NO	4	0
+Alberdi	14	3	B	3,8	30	NO	NO	0	0
+Alberdi	15	3	C	3,8	30	NO	NO	0	0
+Alberdi	16	3	D	3,8	30	NO	NO	0	0
+Alberdi	17	4	A	5,7	30	SI	SI	5	10
+Alberdi	18	4	B	5,7	30	SI	SI	5	10
+Alberdi	19	4	C	5,7	30	SI	SI	5	10
+Alberdi	20	4	D	5,7	30	SI	SI	5	10
+Unzue	1	PB	A	4,7	50	SI	SI	4	8
+Unzue	2	PB	B	4,7	50	SI	SI	4	8
+Unzue	3	PB	C	4,7	50	SI	SI	4	8
+Unzue	4	PB	D	4,7	50	SI	SI	4	8
+Unzue	5	PB	E	4,7	50	SI	SI	4	8
+Unzue	6	1	A	3,0	40	NO	NO	0	0
+Unzue	7	1	B	3,0	40	NO	NO	0	0
+Unzue	8	1	C	3,0	40	NO	NO	0	0
+Unzue	9	1	D	3,3	40	SI	NO	4	0
+Unzue	10	1	E	3,3	40	SI	NO	4	0
+Unzue	11	2	A	3,0	40	NO	NO	0	0
+Unzue	12	2	B	3,0	40	NO	NO	0	0
+Unzue	13	2	C	3,0	40	NO	NO	0	0
+Unzue	14	2	D	3,0	40	NO	NO	0	0
+Unzue	15	2	E	3,0	40	NO	NO	0	0
+Unzue	16	3	A	5,0	55	SI	SI	3	8
+Unzue	17	3	B	5,0	55	SI	SI	3	8
+Unzue	18	3	C	5,0	55	SI	SI	3	8
+Unzue	19	3	D	5,0	55	SI	SI	3	8
+Unzue	20	3	E	5,0	55	SI	SI	3	8
+Unzue	21	4	A	3,8	45	SI	NO	5	0
+Unzue	22	4	B	4,3	45	SI	SI	3	8
+Unzue	23	4	C	4,0	45	NO	SI	0	8
+Unzue	24	4	D	4,0	45	NO	SI	0	8
+Unzue	25	4	E	4,3	45	SI	SI	3	8
+Pereyra Iraola	1	PB	A	2,4	30	SI	SI	3	8
+Pereyra Iraola	2	PB	B	2,4	30	SI	SI	3	8
+Pereyra Iraola	3	PB	C	2,4	30	SI	SI	3	8
+Pereyra Iraola	4	PB	D	2,4	30	SI	SI	3	8
+Pereyra Iraola	5	1	A	2,4	30	SI	SI	3	8
+Pereyra Iraola	6	1	B	2,1	30	SI	NO	5	0
+Pereyra Iraola	7	1	C	2,4	30	SI	SI	3	8
+Pereyra Iraola	8	1	D	2,2	30	NO	SI	0	8
+Pereyra Iraola	9	2	A	2,5	35	NO	SI	0	8
+Pereyra Iraola	10	2	B	2,7	35	SI	SI	3	8
+Pereyra Iraola	11	2	C	2,1	35	NO	NO	0	0
+Pereyra Iraola	12	2	D	2,1	35	NO	NO	0	0
+Pereyra Iraola	13	3	A	2,4	40	NO	NO	0	0
+Pereyra Iraola	14	3	B	2,4	40	NO	NO	0	0
+Pereyra Iraola	15	3	C	2,4	40	NO	NO	0	0
+Pereyra Iraola	16	3	D	3,1	40	SI	SI	5	8
+Pereyra Iraola	17	4	A	2,8	35	SI	SI	5	8
+Pereyra Iraola	18	4	B	2,8	35	SI	SI	5	8
+Pereyra Iraola	19	4	C	2,8	35	SI	SI	5	8
+Pereyra Iraola	20	4	D	2,8	35	SI	SI	5	8
+Pereyra Iraola	21	5	A	2,2	35	SI	NO	3	0
+Pereyra Iraola	22	5	B	2,7	35	SI	SI	3	8
+Pereyra Iraola	23	5	C	2,5	35	NO	SI	0	8
+Pereyra Iraola	24	5	D	2,5	35	NO	SI	0	8
+Pereyra Iraola	25	6	A	2,4	30	SI	SI	3	8
+Pereyra Iraola	26	6	B	2,5	30	SI	SI	4	8
+Pereyra Iraola	27	6	C	2,5	30	SI	SI	4	8
+Pereyra Iraola	28	6	D	2,5	30	SI	SI	4	8
+Pereyra Iraola	29	7	A	2,5	30	SI	SI	4	8
+Pereyra Iraola	30	7	B	2,5	30	SI	SI	4	8
+Pereyra Iraola	31	7	C	1,8	30	NO	NO	0	0
+Pereyra Iraola	32	7	D	1,8	30	NO	NO	0	0
+Pereyra Iraola	33	8	A	2,4	40	NO	NO	0	0
+Pereyra Iraola	34	8	B	2,6	40	SI	NO	4	0
+Pereyra Iraola	35	8	C	2,6	40	SI	NO	4	0
+Pereyra Iraola	36	8	D	3,0	40	SI	SI	3	8
+Pereyra Iraola	37	9	A	2,8	35	SI	SI	4	8
+Pereyra Iraola	38	9	B	2,8	35	SI	SI	4	8
+Pereyra Iraola	39	9	C	2,8	35	SI	SI	4	8
+Pereyra Iraola	40	9	D	2,8	35	SI	SI	4	8
+					 				
+									
+									
+									
