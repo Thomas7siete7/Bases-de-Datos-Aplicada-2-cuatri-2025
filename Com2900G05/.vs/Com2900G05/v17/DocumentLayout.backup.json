@@ -1,7 +1,16 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\CreacionTablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
+      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:CreacionTablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\CreacionBD.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
+      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:CreacionBD.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,15 +18,11 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
             },
             {
               "$type": "Bookmark",
@@ -26,6 +31,36 @@
             {
               "$type": "Bookmark",
               "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:129:0:{75188d03-9892-4ae2-abf1-207126247ce5}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "CreacionTablas.sql - PABLO-BATTISTON.Com2900G05 (PABLO-BATTISTON\\Pablo (69))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\CreacionTablas.sql",
+              "RelativeDocumentMoniker": "CreacionTablas.sql",
+              "ToolTip": "CreacionTablas.sql - PABLO-BATTISTON.Com2900G05 (PABLO-BATTISTON\\Pablo (69))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-02T15:14:54.166Z",
+              "EditorCaption": " - PABLO-BATTISTON.Com2900G05 (PABLO-BATTISTON\\Pablo (69))"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "CreacionBD.sql - PABLO-BATTISTON.Com2900G05 (PABLO-BATTISTON\\Pablo (52))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\CreacionBD.sql",
+              "RelativeDocumentMoniker": "CreacionBD.sql",
+              "ToolTip": "CreacionBD.sql - PABLO-BATTISTON.Com2900G05 (PABLO-BATTISTON\\Pablo (52))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-02T14:59:30.083Z",
+              "EditorCaption": " - PABLO-BATTISTON.Com2900G05 (PABLO-BATTISTON\\Pablo (52))"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
             }
           ]
         }
