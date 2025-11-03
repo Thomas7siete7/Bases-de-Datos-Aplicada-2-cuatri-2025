@@ -34,6 +34,12 @@
           <AssociatedConnUserName />
           <FullPath>CreacionTablas.sql</FullPath>
         </FileNode>
+        <FileNode Name="ImportacionXLSX.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>ImportacionXLSX.sql</FullPath>
+        </FileNode>
       </Items>
     </LogicalFolder>
     <LogicalFolder Name="Varios" Type="3" Sorted="true">

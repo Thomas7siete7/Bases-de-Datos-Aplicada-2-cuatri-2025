@@ -6,7 +6,26 @@ GO
 IF EXISTS (SELECT * FROM sys.schemas WHERE name = 'prod')
     DECLARE @schema SYSNAME = 'prod';
     DECLARE @sql NVARCHAR(MAX) = N'';
-    
+
+    -- Eliminar triggers de tabla (en tablas del esquema)
+    SELECT @sql = @sql + N'DROP TRIGGER [' + s.name + '].[' + tr.name + '];' + CHAR(13)
+    FROM sys.triggers tr
+    JOIN sys.tables t ON tr.parent_id = t.object_id
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = @schema;
+
+    -- Eliminar funciones (scalar o table-valued)
+    SELECT @sql = @sql + N'DROP FUNCTION [' + s.name + '].[' + o.name + '];' + CHAR(13)
+    FROM sys.objects o
+    JOIN sys.schemas s ON o.schema_id = s.schema_id
+    WHERE s.name = @schema AND o.type IN ('FN','TF','IF');  -- funciones escalares, de tabla o inline
+
+    -- Eliminar procedimientos almacenados
+    SELECT @sql = @sql + N'DROP PROCEDURE [' + s.name + '].[' + o.name + '];' + CHAR(13)
+    FROM sys.objects o
+    JOIN sys.schemas s ON o.schema_id = s.schema_id
+    WHERE s.name = @schema AND o.type = 'P';
+
     -- Eliminar indices
     SELECT @sql = @sql + 'DROP INDEX ' + QUOTENAME(i.name) + ' ON ' 
                   + QUOTENAME(s.name) + '.' + QUOTENAME(t.name) + ';' + CHAR(13)
@@ -280,7 +299,7 @@ IF OBJECT_ID('prod.Proveedor','U') IS NOT NULL DROP TABLE prod.Proveedor;
 GO
 CREATE TABLE prod.Proveedor(
   proveedor_id INT IDENTITY(1,1) PRIMARY KEY,
-  nombre VARCHAR(200) NOT NULL,
+  nombre VARCHAR(200) NOT NULL
   CONSTRAINT UQ_Proveedor_Nombre UNIQUE(nombre)   -- evita duplicados por nombre
 );
 
