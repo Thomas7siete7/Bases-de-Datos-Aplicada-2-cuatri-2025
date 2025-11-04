@@ -64,43 +64,36 @@ BEGIN
   SELECT
       consorcio,
       mes,
-      -- BANCARIOS
       CASE 
         WHEN bancarios LIKE '%,%.%' AND CHARINDEX(',',bancarios) < CHARINDEX('.',bancarios)
              THEN TRY_CONVERT(DECIMAL(12,2), REPLACE(bancarios, ',', ''))
         ELSE TRY_CONVERT(DECIMAL(12,2), REPLACE(REPLACE(bancarios, '.', ''), ',', '.'))
       END AS BANCARIOS,
-      -- LIMPIEZA
       CASE 
         WHEN limpieza LIKE '%,%.%' AND CHARINDEX(',',limpieza) < CHARINDEX('.',limpieza)
              THEN TRY_CONVERT(DECIMAL(12,2), REPLACE(limpieza, ',', ''))
         ELSE TRY_CONVERT(DECIMAL(12,2), REPLACE(REPLACE(limpieza, '.', ''), ',', '.'))
       END AS LIMPIEZA,
-      -- ADMINISTRACION
       CASE 
         WHEN administracion LIKE '%,%.%' AND CHARINDEX(',',administracion) < CHARINDEX('.',administracion)
              THEN TRY_CONVERT(DECIMAL(12,2), REPLACE(administracion, ',', ''))
         ELSE TRY_CONVERT(DECIMAL(12,2), REPLACE(REPLACE(administracion, '.', ''), ',', '.'))
       END AS ADMINISTRACION,
-      -- SEGUROS
       CASE 
         WHEN seguros LIKE '%,%.%' AND CHARINDEX(',',seguros) < CHARINDEX('.',seguros)
              THEN TRY_CONVERT(DECIMAL(12,2), REPLACE(seguros, ',', ''))
         ELSE TRY_CONVERT(DECIMAL(12,2), REPLACE(REPLACE(seguros, '.', ''), ',', '.'))
       END AS SEGUROS,
-      -- GASTOS GENERALES
       CASE 
         WHEN gastos_generales LIKE '%,%.%' AND CHARINDEX(',',gastos_generales) < CHARINDEX('.',gastos_generales)
              THEN TRY_CONVERT(DECIMAL(12,2), REPLACE(gastos_generales, ',', ''))
         ELSE TRY_CONVERT(DECIMAL(12,2), REPLACE(REPLACE(gastos_generales, '.', ''), ',', '.'))
       END AS GASTOS_GENERALES,
-      -- SERVICIOS PUBLICOS - AGUA
       CASE 
         WHEN serv_agua LIKE '%,%.%' AND CHARINDEX(',',serv_agua) < CHARINDEX('.',serv_agua)
              THEN TRY_CONVERT(DECIMAL(12,2), REPLACE(serv_agua, ',', ''))
         ELSE TRY_CONVERT(DECIMAL(12,2), REPLACE(REPLACE(serv_agua, '.', ''), ',', '.'))
       END AS SERVICIOS_PUBLICOS_Agua,
-      -- SERVICIOS PUBLICOS - LUZ
       CASE 
         WHEN serv_luz LIKE '%,%.%' AND CHARINDEX(',',serv_luz) < CHARINDEX('.',serv_luz)
              THEN TRY_CONVERT(DECIMAL(12,2), REPLACE(serv_luz, ',', ''))
@@ -197,30 +190,33 @@ BEGIN
 END
 GO
 
-  --Ejecutar SP
-
+-- Ejecutar SP
 EXEC prod.sp_ImportarServicios_JSON 
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Servicios.Servicios.json',
-  @anio = 2025;
 
-  --Consultas de prueba
-
-  -- Expensas creadas/actualizadas
-SELECT c.nombre, e.periodo, e.vencimiento1, e.vencimiento2, e.total
+-- Consultas de prueba
+SELECT 
+  c.nombre, 
+  e.periodo, 
+  e.vencimiento1, 
+  e.vencimiento2, 
+  CONCAT('$', FORMAT(e.total, 'N2', 'es-AR')) AS total
 FROM prod.Expensa e
 JOIN prod.Consorcio c ON c.consorcio_id = e.consorcio_id
 ORDER BY c.nombre, e.periodo;
 
--- Ordinarios generados por rubro
-SELECT c.nombre, e.periodo, o.tipo_gasto_ordinario, o.importe
+SELECT 
+  c.nombre, e.periodo, o.tipo_gasto_ordinario, 
+  CONCAT('$', FORMAT(o.importe, 'N2', 'es-AR')) AS importe
 FROM prod.Ordinarios o
 JOIN prod.Expensa e   ON e.expensa_id = o.expensa_id
 JOIN prod.Consorcio c ON c.consorcio_id = e.consorcio_id
 ORDER BY c.nombre, e.periodo, o.tipo_gasto_ordinario;
 
--- Resumen por consorcio/periodo (sumatoria de ordinarios = total expensa?)
-SELECT c.nombre, e.periodo,
-       SUM(o.importe) AS total_ordinarios, e.total AS total_expensa
+SELECT 
+  c.nombre, e.periodo,
+  CONCAT('$', FORMAT(SUM(o.importe), 'N2', 'es-AR')) AS total_ordinarios, 
+  CONCAT('$', FORMAT(e.total, 'N2', 'es-AR'))        AS total_expensa
 FROM prod.Expensa e
 JOIN prod.Consorcio c ON c.consorcio_id = e.consorcio_id
 LEFT JOIN prod.Ordinarios o ON o.expensa_id = e.expensa_id
