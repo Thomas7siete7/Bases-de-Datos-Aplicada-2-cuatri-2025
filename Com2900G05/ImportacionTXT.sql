@@ -33,10 +33,10 @@ BEGIN
 
   SET @sql = N'
   BULK INSERT #UF
-  FROM ''' + @p + N'''
+  FROM ' + QUOTENAME(@p,'''') + N'
   WITH (
       FIELDTERMINATOR = ''\t'',   -- TAB
-      ROWTERMINATOR   = ''\n'',
+      ROWTERMINATOR   = ''0x0a'',
       FIRSTROW        = 2,        -- salta encabezado
       CODEPAGE        = ''ACP'',
       TABLOCK
@@ -48,7 +48,7 @@ BEGIN
      SET NombreConsorcio = REPLACE(NombreConsorcio, NCHAR(65279), N'');
 
   UPDATE #UF
-     SET NombreConsorcio = UPPER(LTRIM(RTRIM(NombreConsorcio))),
+     SET NombreConsorcio = LTRIM(RTRIM(NombreConsorcio)),
          nroUnidadFuncional = LTRIM(RTRIM(nroUnidadFuncional)),
          Piso = LTRIM(RTRIM(Piso)),
          Departamento = LTRIM(RTRIM(Departamento)),
@@ -61,9 +61,9 @@ BEGIN
 
   -- Borra headers/ títulos
   DELETE FROM #UF
-  WHERE NombreConsorcio IN (N'NOMBRE DEL CONSORCIO', N'CONSORCIO')
-     OR Piso           = N'PISO'
-     OR Departamento   = N'DEPARTAMENTO';
+  WHERE UPPER(NombreConsorcio) IN (N'NOMBRE DEL CONSORCIO', N'CONSORCIO')
+     OR UPPER(Piso)           = N'PISO'
+     OR UPPER(Departamento)   = N'DEPARTAMENTO';
 
   -- Borra filas vacías
   DELETE FROM #UF
@@ -73,43 +73,24 @@ BEGIN
   BEGIN TRY
     BEGIN TRAN;
 
-      -- 4) Agregados por Consorcio
-      IF OBJECT_ID('tempdb..#ConsAgg') IS NOT NULL DROP TABLE #ConsAgg;
-      SELECT
-        NombreConsorcio AS nombre,
-        'SIN-DIRECCION' AS direccion,
-        COUNT(*) AS cant_unidades,
-        SUM(TRY_CONVERT(INT, m2_unidad_funcional_txt))
-          + SUM(CASE WHEN Bauleras='SI' THEN TRY_CONVERT(INT, m2_baulera_txt) ELSE 0 END)
-          + SUM(CASE WHEN Cochera ='SI' THEN TRY_CONVERT(INT, m2_cochera_txt) ELSE 0 END) AS cant_m2_total
-      INTO #ConsAgg
-      FROM #UF
-      WHERE NULLIF(NombreConsorcio,'') IS NOT NULL
-        AND TRY_CONVERT(INT, m2_unidad_funcional_txt) IS NOT NULL
-      GROUP BY NombreConsorcio;
+      /* IMPORTANTE:
+         - NO se crea ni actualiza prod.Consorcio.
+         - Solo se usa el consorcio YA EXISTENTE con direccion real.
+         - Match por nombre case-insensitive y direccion <> 'SIN-DIRECCION'.
+      */
 
-      -- 5) UPSERT Consorcio
-      MERGE prod.Consorcio AS D
-      USING #ConsAgg AS S
-        ON D.nombre = S.nombre AND D.direccion = S.direccion
-      WHEN MATCHED THEN
-        UPDATE SET D.cant_unidades = S.cant_unidades,
-                   D.cant_m2_total = S.cant_m2_total
-      WHEN NOT MATCHED THEN
-        INSERT (nombre, direccion, cant_unidades, cant_m2_total)
-        VALUES (S.nombre, S.direccion, S.cant_unidades, S.cant_m2_total);
-
-      -- 6) INSERT UFs
+      -- 4) INSERT UFs (solo si existe el consorcio con dirección)
       INSERT INTO prod.UnidadFuncional (consorcio_id, piso, depto, cant_m2, coeficiente)
       SELECT
         C.consorcio_id,
-        CASE WHEN U.Piso IN ('PB','PA') THEN U.Piso ELSE RIGHT('  ' + U.Piso, 2) END,
+        CASE WHEN UPPER(U.Piso) IN ('PB','PA') THEN UPPER(U.Piso) ELSE RIGHT('  ' + U.Piso, 2) END,
         LEFT(U.Departamento,1),
         TRY_CONVERT(INT, U.m2_unidad_funcional_txt),
         TRY_CONVERT(DECIMAL(5,2), REPLACE(U.Coeficiente_txt, ',', '.'))
       FROM #UF U
       JOIN prod.Consorcio C
-        ON C.nombre = U.NombreConsorcio AND C.direccion = 'SIN-DIRECCION'
+        ON UPPER(C.nombre) = UPPER(U.NombreConsorcio)
+       AND C.direccion <> 'SIN-DIRECCION'
       WHERE NULLIF(U.NombreConsorcio,'') IS NOT NULL
         AND TRY_CONVERT(INT, U.m2_unidad_funcional_txt) IS NOT NULL
         AND NULLIF(U.Departamento,'') IS NOT NULL
@@ -117,30 +98,34 @@ BEGIN
           SELECT 1
           FROM prod.UnidadFuncional F
           WHERE F.consorcio_id = C.consorcio_id
-            AND F.piso  = CASE WHEN U.Piso IN ('PB','PA') THEN U.Piso ELSE RIGHT('  ' + U.Piso, 2) END
+            AND F.piso  = CASE WHEN UPPER(U.Piso) IN ('PB','PA') THEN UPPER(U.Piso) ELSE RIGHT('  ' + U.Piso, 2) END
             AND F.depto = LEFT(U.Departamento,1)
         );
 
-      -- 7) BAULERA
+      -- 5) BAULERA
       INSERT INTO prod.UnidadAccesoria (uf_id, m2_accesorio, tipo_accesorio)
       SELECT F.uf_id, TRY_CONVERT(INT, U.m2_baulera_txt), 'BAULERA'
       FROM #UF U
-      JOIN prod.Consorcio C ON C.nombre = U.NombreConsorcio AND C.direccion = 'SIN-DIRECCION'
+      JOIN prod.Consorcio C 
+        ON UPPER(C.nombre) = UPPER(U.NombreConsorcio)
+       AND C.direccion <> 'SIN-DIRECCION'
       JOIN prod.UnidadFuncional F 
         ON F.consorcio_id = C.consorcio_id
-       AND F.piso  = CASE WHEN U.Piso IN ('PB','PA') THEN U.Piso ELSE RIGHT('  ' + U.Piso, 2) END
+       AND F.piso  = CASE WHEN UPPER(U.Piso) IN ('PB','PA') THEN UPPER(U.Piso) ELSE RIGHT('  ' + U.Piso, 2) END
        AND F.depto = LEFT(U.Departamento,1)
       WHERE U.Bauleras='SI'
         AND TRY_CONVERT(INT, U.m2_baulera_txt) > 0;
 
-      -- 8) COCHERA
+      -- 6) COCHERA
       INSERT INTO prod.UnidadAccesoria (uf_id, m2_accesorio, tipo_accesorio)
       SELECT F.uf_id, TRY_CONVERT(INT, U.m2_cochera_txt), 'COCHERA'
       FROM #UF U
-      JOIN prod.Consorcio C ON C.nombre = U.NombreConsorcio AND C.direccion = 'SIN-DIRECCION'
+      JOIN prod.Consorcio C 
+        ON UPPER(C.nombre) = UPPER(U.NombreConsorcio)
+       AND C.direccion <> 'SIN-DIRECCION'
       JOIN prod.UnidadFuncional F 
         ON F.consorcio_id = C.consorcio_id
-       AND F.piso  = CASE WHEN U.Piso IN ('PB','PA') THEN U.Piso ELSE RIGHT('  ' + U.Piso, 2) END
+       AND F.piso  = CASE WHEN UPPER(U.Piso) IN ('PB','PA') THEN UPPER(U.Piso) ELSE RIGHT('  ' + U.Piso, 2) END
        AND F.depto = LEFT(U.Departamento,1)
       WHERE U.Cochera='SI'
         AND TRY_CONVERT(INT, U.m2_cochera_txt) > 0;
@@ -158,9 +143,10 @@ GO
 EXEC prod.sp_ImportarUF_TXT 
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\UF por consorcio.txt';
 
--- Ver importacion
+-- Verificación (ya NO deberían aparecer consorcios SIN-DIRECCION nuevos)
 SELECT c.consorcio_id, c.nombre, c.direccion, c.cant_unidades, c.cant_m2_total
-FROM prod.Consorcio c ORDER BY c.nombre;
+FROM prod.Consorcio c 
+ORDER BY c.nombre;
 
 SELECT c.nombre AS Consorcio, uf.uf_id, uf.piso, uf.depto, uf.cant_m2, uf.coeficiente
 FROM prod.UnidadFuncional uf
@@ -172,5 +158,3 @@ FROM prod.UnidadAccesoria ua
 JOIN prod.UnidadFuncional uf ON ua.uf_id = uf.uf_id
 JOIN prod.Consorcio c ON c.consorcio_id = uf.consorcio_id
 ORDER BY c.nombre, uf.piso, uf.depto, ua.tipo_accesorio;
-
-

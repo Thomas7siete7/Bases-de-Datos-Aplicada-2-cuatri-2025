@@ -2,7 +2,8 @@
    Trabajo Práctico Integrador - Bases de Datos Aplicadas
    Grupo N°: 5
    Comisión: 2900
-   Alumnos: Battiston Pablo     			44893256
+   Alumnos: Battiston   Pablo       44893256
+            Castillo    Rodrigo     44258511
             
    ========================================================================= */
 
