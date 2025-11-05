@@ -30,17 +30,18 @@ BEGIN
     DECLARE @sql NVARCHAR(MAX), @p NVARCHAR(400);
     SET @p = REPLACE(@path, '''', '''''');
 
-  SET @sql = N'
-  BULK INSERT #UF
-  FROM ' + QUOTENAME(@p,'''') + N'
-  WITH (
-      FIELDTERMINATOR = ''\t'',   -- TAB
-      ROWTERMINATOR   = ''0x0a'',
-      FIRSTROW        = 2,        -- salta encabezado
-      CODEPAGE        = ''ACP'',
-      TABLOCK
-  );';
-  EXEC(@sql);
+    /* 2) BULK (CRLF) */
+    SET @sql = N'
+    BULK INSERT #UF
+    FROM ' + QUOTENAME(@p,'''') + N'
+    WITH (
+        FIELDTERMINATOR = ''\t'',
+        ROWTERMINATOR   = ''0x0d0a'',
+        FIRSTROW        = 2,
+        CODEPAGE        = ''ACP'',
+        TABLOCK
+    );';
+    EXEC(@sql);
 
     -- Limpieza de BOM y CR
     UPDATE #UF SET NombreConsorcio = REPLACE(NombreConsorcio, NCHAR(65279), N'');
@@ -56,23 +57,24 @@ BEGIN
            m2_baulera_txt           = REPLACE(m2_baulera_txt,          CHAR(13), ''),
            m2_cochera_txt           = REPLACE(m2_cochera_txt,          CHAR(13), '');
 
-  UPDATE #UF
-     SET NombreConsorcio = LTRIM(RTRIM(NombreConsorcio)),
-         nroUnidadFuncional = LTRIM(RTRIM(nroUnidadFuncional)),
-         Piso = LTRIM(RTRIM(Piso)),
-         Departamento = LTRIM(RTRIM(Departamento)),
-         Coeficiente_txt = LTRIM(RTRIM(Coeficiente_txt)),
-         m2_unidad_funcional_txt = LTRIM(RTRIM(m2_unidad_funcional_txt)),
-         Bauleras = UPPER(LTRIM(RTRIM(Bauleras))),
-         Cochera  = UPPER(LTRIM(RTRIM(Cochera))),
-         m2_baulera_txt = LTRIM(RTRIM(m2_baulera_txt)),
-         m2_cochera_txt = LTRIM(RTRIM(m2_cochera_txt));
+    -- Trim + normalización
+    UPDATE #UF
+       SET NombreConsorcio          = LTRIM(RTRIM(NombreConsorcio)),
+           nroUnidadFuncional       = LTRIM(RTRIM(nroUnidadFuncional)),
+           Piso                     = LTRIM(RTRIM(Piso)),
+           Departamento             = LTRIM(RTRIM(Departamento)),
+           Coeficiente_txt          = LTRIM(RTRIM(Coeficiente_txt)),
+           m2_unidad_funcional_txt  = LTRIM(RTRIM(m2_unidad_funcional_txt)),
+           Bauleras                 = LTRIM(RTRIM(REPLACE(UPPER(Bauleras), CHAR(160), ' '))),
+           Cochera                  = LTRIM(RTRIM(REPLACE(UPPER(Cochera) , CHAR(160), ' '))),
+           m2_baulera_txt           = LTRIM(RTRIM(m2_baulera_txt)),
+           m2_cochera_txt           = LTRIM(RTRIM(m2_cochera_txt));
 
-  -- Borra headers/ títulos
-  DELETE FROM #UF
-  WHERE UPPER(NombreConsorcio) IN (N'NOMBRE DEL CONSORCIO', N'CONSORCIO')
-     OR UPPER(Piso)           = N'PISO'
-     OR UPPER(Departamento)   = N'DEPARTAMENTO';
+    -- Quita headers/filas nulas
+    DELETE FROM #UF
+    WHERE UPPER(NombreConsorcio) IN (N'NOMBRE DEL CONSORCIO', N'CONSORCIO')
+       OR UPPER(Piso)           = N'PISO'
+       OR UPPER(Departamento)   = N'DEPARTAMENTO';
 
     DELETE FROM #UF
     WHERE NULLIF(NombreConsorcio,'') IS NULL
@@ -81,62 +83,101 @@ BEGIN
     /* 3) Tokenización a #UF_ready */
     IF OBJECT_ID('tempdb..#UF_ready') IS NOT NULL DROP TABLE #UF_ready;
 
-      /* IMPORTANTE:
-         - NO se crea ni actualiza prod.Consorcio.
-         - Solo se usa el consorcio YA EXISTENTE con direccion real.
-         - Match por nombre case-insensitive y direccion <> 'SIN-DIRECCION'.
-      */
+    SELECT
+        U.NombreConsorcio,
+        U.nroUnidadFuncional,
+        U.Piso,
+        U.Departamento,
+        U.Coeficiente_txt,
+        U.m2_unidad_funcional_txt,
+        m2_baulera_int  = TRY_CONVERT(INT, NULLIF(U.m2_baulera_txt,'')),
+        m2_cochera_int  = TRY_CONVERT(INT, NULLIF(U.m2_cochera_txt,'')),
+        has_baulera     = CASE WHEN UPPER(REPLACE(U.Bauleras, N'Í', N'I')) IN (N'SI', N'SÍ', N'X', N'1') THEN 1 ELSE 0 END,
+        has_cochera     = CASE WHEN UPPER(REPLACE(U.Cochera , N'Í', N'I')) IN (N'SI', N'SÍ', N'X', N'1') THEN 1 ELSE 0 END
+    INTO #UF_ready
+    FROM #UF U;
 
-      -- 4) INSERT UFs (solo si existe el consorcio con dirección)
-      INSERT INTO prod.UnidadFuncional (consorcio_id, piso, depto, cant_m2, coeficiente)
-      SELECT
-        C.consorcio_id,
-        CASE WHEN UPPER(U.Piso) IN ('PB','PA') THEN UPPER(U.Piso) ELSE RIGHT('  ' + U.Piso, 2) END,
-        LEFT(U.Departamento,1),
-        TRY_CONVERT(INT, U.m2_unidad_funcional_txt),
-        TRY_CONVERT(DECIMAL(5,2), REPLACE(U.Coeficiente_txt, ',', '.'))
-      FROM #UF U
-      JOIN prod.Consorcio C
-        ON UPPER(C.nombre) = UPPER(U.NombreConsorcio)
-       AND C.direccion <> 'SIN-DIRECCION'
-      WHERE NULLIF(U.NombreConsorcio,'') IS NOT NULL
-        AND TRY_CONVERT(INT, U.m2_unidad_funcional_txt) IS NOT NULL
-        AND NULLIF(U.Departamento,'') IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1
-          FROM prod.UnidadFuncional F
-          WHERE F.consorcio_id = C.consorcio_id
-            AND F.piso  = CASE WHEN UPPER(U.Piso) IN ('PB','PA') THEN UPPER(U.Piso) ELSE RIGHT('  ' + U.Piso, 2) END
-            AND F.depto = LEFT(U.Departamento,1)
-        );
+    BEGIN TRY
+        BEGIN TRAN;
 
-      -- 5) BAULERA
-      INSERT INTO prod.UnidadAccesoria (uf_id, m2_accesorio, tipo_accesorio)
-      SELECT F.uf_id, TRY_CONVERT(INT, U.m2_baulera_txt), 'BAULERA'
-      FROM #UF U
-      JOIN prod.Consorcio C 
-        ON UPPER(C.nombre) = UPPER(U.NombreConsorcio)
-       AND C.direccion <> 'SIN-DIRECCION'
-      JOIN prod.UnidadFuncional F 
-        ON F.consorcio_id = C.consorcio_id
-       AND F.piso  = CASE WHEN UPPER(U.Piso) IN ('PB','PA') THEN UPPER(U.Piso) ELSE RIGHT('  ' + U.Piso, 2) END
-       AND F.depto = LEFT(U.Departamento,1)
-      WHERE U.Bauleras='SI'
-        AND TRY_CONVERT(INT, U.m2_baulera_txt) > 0;
+        /* 4) UF (matcheando Consorcio por nombre CI_AI) */
+        INSERT INTO prod.UnidadFuncional (consorcio_id, piso, depto, cant_m2, coeficiente)
+        SELECT
+            C.consorcio_id,
+            CASE WHEN UPPER(R.Piso) IN ('PB','PA') THEN UPPER(R.Piso)
+                 ELSE RIGHT('  ' + R.Piso, 2) END,
+            LEFT(R.Departamento,1),
+            TRY_CONVERT(INT, R.m2_unidad_funcional_txt),
+            TRY_CONVERT(DECIMAL(5,2), REPLACE(R.Coeficiente_txt, ',', '.'))
+        FROM #UF_ready R
+        JOIN prod.Consorcio C
+          ON C.nombre COLLATE Latin1_General_CI_AI = R.NombreConsorcio COLLATE Latin1_General_CI_AI
+        WHERE NULLIF(R.NombreConsorcio,'') IS NOT NULL
+          AND TRY_CONVERT(INT, R.m2_unidad_funcional_txt) IS NOT NULL
+          AND NULLIF(R.Departamento,'') IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1
+              FROM prod.UnidadFuncional F
+              WHERE F.consorcio_id = C.consorcio_id
+                AND F.piso  = CASE WHEN UPPER(R.Piso) IN ('PB','PA') THEN UPPER(R.Piso) ELSE RIGHT('  ' + R.Piso, 2) END
+                AND F.depto = LEFT(R.Departamento,1)
+          );
 
-      -- 6) COCHERA
-      INSERT INTO prod.UnidadAccesoria (uf_id, m2_accesorio, tipo_accesorio)
-      SELECT F.uf_id, TRY_CONVERT(INT, U.m2_cochera_txt), 'COCHERA'
-      FROM #UF U
-      JOIN prod.Consorcio C 
-        ON UPPER(C.nombre) = UPPER(U.NombreConsorcio)
-       AND C.direccion <> 'SIN-DIRECCION'
-      JOIN prod.UnidadFuncional F 
-        ON F.consorcio_id = C.consorcio_id
-       AND F.piso  = CASE WHEN UPPER(U.Piso) IN ('PB','PA') THEN UPPER(U.Piso) ELSE RIGHT('  ' + U.Piso, 2) END
-       AND F.depto = LEFT(U.Departamento,1)
-      WHERE U.Cochera='SI'
-        AND TRY_CONVERT(INT, U.m2_cochera_txt) > 0;
+        /* 5) MAPEO persistente (#MAP en vez de CTE) */
+        IF OBJECT_ID('tempdb..#MAP') IS NOT NULL DROP TABLE #MAP;
+
+        SELECT 
+            F.uf_id,
+            R.has_baulera, 
+            R.has_cochera,
+            R.m2_baulera_int, 
+            R.m2_cochera_int
+        INTO #MAP
+        FROM #UF_ready R
+        JOIN prod.Consorcio C
+          ON C.nombre COLLATE Latin1_General_CI_AI = R.NombreConsorcio COLLATE Latin1_General_CI_AI
+        JOIN prod.UnidadFuncional F
+          ON F.consorcio_id = C.consorcio_id
+         AND F.piso  = CASE WHEN UPPER(R.Piso) IN ('PB','PA') THEN UPPER(R.Piso) ELSE RIGHT('  ' + R.Piso, 2) END
+         AND F.depto = LEFT(R.Departamento,1);
+
+        /* 6) Accesorios: BAULERA */
+        INSERT INTO prod.UnidadAccesoria (uf_id, m2_accesorio, tipo_accesorio)
+        SELECT M.uf_id, M.m2_baulera_int, 'BAULERA'
+        FROM #MAP AS M
+        WHERE M.has_baulera = 1
+          AND ISNULL(M.m2_baulera_int,0) > 0
+          AND NOT EXISTS (
+                SELECT 1 FROM prod.UnidadAccesoria UA
+                WHERE UA.uf_id = M.uf_id AND UA.tipo_accesorio = 'BAULERA'
+          );
+
+        UPDATE UA
+           SET UA.m2_accesorio = M.m2_baulera_int
+        FROM prod.UnidadAccesoria UA
+        JOIN #MAP AS M
+          ON UA.uf_id = M.uf_id AND UA.tipo_accesorio = 'BAULERA'
+        WHERE M.has_baulera = 1
+          AND ISNULL(M.m2_baulera_int,0) > 0;
+
+        /* 7) Accesorios: COCHERA */
+        INSERT INTO prod.UnidadAccesoria (uf_id, m2_accesorio, tipo_accesorio)
+        SELECT M.uf_id, M.m2_cochera_int, 'COCHERA'
+        FROM #MAP AS M
+        WHERE M.has_cochera = 1
+          AND ISNULL(M.m2_cochera_int,0) > 0
+          AND NOT EXISTS (
+                SELECT 1 FROM prod.UnidadAccesoria UA
+                WHERE UA.uf_id = M.uf_id AND UA.tipo_accesorio = 'COCHERA'
+          );
+
+        UPDATE UA
+           SET UA.m2_accesorio = M.m2_cochera_int
+        FROM prod.UnidadAccesoria UA
+        JOIN #MAP AS M
+          ON UA.uf_id = M.uf_id AND UA.tipo_accesorio = 'COCHERA'
+        WHERE M.has_cochera = 1
+          AND ISNULL(M.m2_cochera_int,0) > 0;
 
         COMMIT;
     END TRY
@@ -150,6 +191,7 @@ BEGIN
     END CATCH
 END
 GO
+
 
 
 -- Ejecución
