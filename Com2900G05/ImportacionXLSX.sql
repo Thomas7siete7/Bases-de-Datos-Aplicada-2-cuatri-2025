@@ -1,4 +1,5 @@
-﻿USE COM2900G05;
+
+USE COM2900G05;
 GO
 IF OBJECT_ID('prod.sp_ImportarConsorcios','P') IS NOT NULL DROP PROCEDURE prod.sp_ImportarConsorcios;
 GO
@@ -113,13 +114,14 @@ GO
 
 
 EXEC prod.sp_ImportarConsorcios
-  @path = 'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\datos varios.xlsx';
+  @path = 'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/consorcios/datos varios.xlsx';
 GO
 
 EXEC prod.sp_ImportarProveedores
-  @path = 'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\datos varios.xlsx';
+  @path = 'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/consorcios/datos varios.xlsx';
 GO
 
 SELECT * FROM prod.Consorcio;
 SELECT * FROM prod.Proveedor;
 SELECT * FROM prod.ProveedorConsorcio;
+

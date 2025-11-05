@@ -39,7 +39,7 @@ IF EXISTS (SELECT * FROM sys.schemas WHERE name = 'prod')
       AND i.is_primary_key = 0            
       AND i.is_unique_constraint = 0;     
 
-    -- Eliminar claves for�neas del esquema
+    -- Eliminar claves foráneas del esquema
     SELECT @sql = @sql + 'ALTER TABLE [' + s.name + '].[' + t.name + '] DROP CONSTRAINT [' + fk.name + '];' + CHAR(13)
     FROM sys.foreign_keys fk
     JOIN sys.tables t ON fk.parent_object_id = t.object_id
@@ -71,11 +71,11 @@ CREATE TABLE prod.Persona(
     nombre       VARCHAR(50)        NOT NULL,
     apellido     VARCHAR(50)        NOT NULL,
     email        VARCHAR(70)        NOT NULL,
-    dni          INT                NOT NULL,
-    telefono     INT                NOT NULL,
+    dni          VARCHAR(10)        NOT NULL,
+    telefono     VARCHAR(15)        NOT NULL,
     cbu_cvu      CHAR(22)           NOT NULL,
-    inquilino    INT                NOT NULL,
     CONSTRAINT PK_Persona PRIMARY KEY CLUSTERED(persona_id),
+    CONSTRAINT UQ_Persona_DNI UNIQUE(dni),
     CONSTRAINT UQ_Persona_CBU UNIQUE(cbu_cvu),
     CONSTRAINT CK_Persona_CBU_LEN CHECK (cbu_cvu IS NULL OR LEN(cbu_cvu)=22)
 );
@@ -88,10 +88,10 @@ IF OBJECT_ID('prod.Consorcio','U') IS NOT NULL DROP TABLE prod.Consorcio;
 GO
 CREATE TABLE prod.Consorcio(
     consorcio_id   INT IDENTITY(1,1) NOT NULL,
-    nombre         VARCHAR(50)       NULL,
+    nombre         VARCHAR(50)       NOT NULL,
     direccion      VARCHAR(200)      NOT NULL,
     cant_unidades  INT               NOT NULL,
-    cant_m2_total  INT               NULL,
+    cant_m2_total  INT               NOT NULL,
     CONSTRAINT PK_Consorcio PRIMARY KEY CLUSTERED(consorcio_id),
     CONSTRAINT UQ_Consorcio_Nom_Dir UNIQUE (nombre, direccion),
     CONSTRAINT CK_Consorcio_CantUnidades CHECK (cant_unidades > 0),
@@ -144,7 +144,7 @@ GO
 IF OBJECT_ID('prod.Expensa','U') IS NOT NULL DROP TABLE prod.Expensa;
 GO
 CREATE TABLE prod.Expensa(
-    expensa_id    INT IDENTITY(1,1),
+    expensa_id    INT IDENTITY(1,1) NOT NULL,
     consorcio_id  INT               NOT NULL,
     periodo       DATE              NOT NULL,
     vencimiento1  DATE              NOT NULL,
@@ -160,7 +160,25 @@ CREATE TABLE prod.Expensa(
 GO
 
 /* =========================
-   6) EXTRAORDINARIOS
+   6) ORDINARIOS
+   ========================= */
+IF OBJECT_ID('prod.Ordinarios','U') IS NOT NULL DROP TABLE prod.Ordinarios;
+GO
+CREATE TABLE prod.Ordinarios(
+    gasto_id_ord        INT IDENTITY(1,1) NOT NULL,
+    expensa_id          INT               NOT NULL,
+    tipo_gasto_ordinario VARCHAR(50)      NOT NULL,
+    nro_factura         VARCHAR(50)       NULL,
+    importe             DECIMAL(12,2)     NOT NULL,
+    CONSTRAINT PK_Ordinarios PRIMARY KEY CLUSTERED(gasto_id_ord),
+    CONSTRAINT FK_Ord_Expensa FOREIGN KEY(expensa_id)
+        REFERENCES prod.Expensa(expensa_id) ON UPDATE NO ACTION ON DELETE CASCADE,
+    CONSTRAINT CK_Ord_Importe CHECK (importe > 0)
+);
+GO
+
+/* =========================
+   7) EXTRAORDINARIOS
    ========================= */
 IF OBJECT_ID('prod.Extraordinarios','U') IS NOT NULL DROP TABLE prod.Extraordinarios;
 GO
@@ -180,7 +198,7 @@ CREATE TABLE prod.Extraordinarios(
 GO
 
 /* =========================
-   7) FACTURA
+   8) FACTURA
    ========================= */
 IF OBJECT_ID('prod.Factura','U') IS NOT NULL DROP TABLE prod.Factura;
 GO
@@ -208,7 +226,7 @@ CREATE TABLE prod.Factura(
 GO
 
 /* =========================
-   8) TITULARIDAD
+   9) TITULARIDAD
    ========================= */
 IF OBJECT_ID('prod.Titularidad','U') IS NOT NULL DROP TABLE prod.Titularidad;
 GO
@@ -231,21 +249,24 @@ CREATE TABLE prod.Titularidad(
 GO
 
 /* =========================
-   9) PAGO
+   10) PAGO
    ========================= */
 IF OBJECT_ID('prod.Pago','U') IS NOT NULL DROP TABLE prod.Pago;
 GO
 CREATE TABLE prod.Pago(
     pago_id             INT IDENTITY(1,1) NOT NULL,
-    expensa_id          INT               ,
+    expensa_id          INT               NOT NULL,
+    titular_unidad_id   INT               NOT NULL,
     fecha               DATE              NOT NULL,
-    importe             DECIMAL(12,2)      NOT NULL,
+    importe             DECIMAL(12,2)     NOT NULL,
     nro_transaccion     VARCHAR(100)      NOT NULL,
     estado              VARCHAR(15)       NOT NULL,
     cbu_cvu_origen      CHAR(22)          NULL,
     CONSTRAINT PK_Pago PRIMARY KEY CLUSTERED(pago_id),
     CONSTRAINT FK_Pago_Expensa FOREIGN KEY(expensa_id)
         REFERENCES prod.Expensa(expensa_id) ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT FK_Pago_Titularidad FOREIGN KEY(titular_unidad_id)
+        REFERENCES prod.Titularidad(titular_unidad_id) ON UPDATE NO ACTION ON DELETE NO ACTION,
     CONSTRAINT UQ_Pago_Tx UNIQUE(nro_transaccion),
     CONSTRAINT CK_Pago_Importe CHECK (importe > 0),
     CONSTRAINT CK_Pago_CBU_LEN CHECK (cbu_cvu_origen IS NULL OR LEN(cbu_cvu_origen)=22),
@@ -254,7 +275,7 @@ CREATE TABLE prod.Pago(
 GO
 
 /* =========================
-   10) MORA
+   11) MORA
    ========================= */
 IF OBJECT_ID('prod.Mora','U') IS NOT NULL DROP TABLE prod.Mora;
 GO
@@ -271,9 +292,8 @@ CREATE TABLE prod.Mora(
     CONSTRAINT CK_Mora_Importe CHECK (importe >= 0)
 );
 GO
-
 /* =========================
-   11) PROVEEDOR
+   12) PROVEEDOR
    ========================= */
 IF OBJECT_ID('prod.Proveedor','U') IS NOT NULL DROP TABLE prod.Proveedor;
 GO
@@ -284,7 +304,7 @@ CREATE TABLE prod.Proveedor(
 );
 
 /* =========================
-   12) PROVEEDOR_CONSORCIO
+   13) PROVEEDOR_CONSORCIO
    ========================= */
 IF OBJECT_ID('prod.ProveedorConsorcio','U') IS NOT NULL DROP TABLE prod.ProveedorConsorcio;
 GO
@@ -292,32 +312,11 @@ CREATE TABLE prod.ProveedorConsorcio(
   pc_id INT IDENTITY(1,1) PRIMARY KEY,
   proveedor_id  INT NOT NULL REFERENCES prod.Proveedor(proveedor_id),
   consorcio_id  INT NOT NULL REFERENCES prod.Consorcio(consorcio_id),
-  tipo_gasto    VARCHAR(80)  NOT NULL,           -- ?GASTOS BANCARIOS?, ?SERVICIOS PUBLICOS?, etc.
-  referencia    VARCHAR(80)  NULL,               -- ?Cuenta 195329?, ?Limptech?, etc.
+  tipo_gasto    VARCHAR(80)  NOT NULL,           -- GASTOS BANCARIOS, SERVICIOS PUBLICOS, etc.
+  referencia    VARCHAR(80)  NULL,               -- Cuenta 195329, Limptech, etc.
   activo        BIT NOT NULL DEFAULT(1),
   CONSTRAINT UQ_ProvCons UNIQUE(proveedor_id, consorcio_id, tipo_gasto, referencia)
 );
-
-/* =========================
-   13) ORDINARIOS
-   ========================= */
-IF OBJECT_ID('prod.Ordinarios','U') IS NOT NULL DROP TABLE prod.Ordinarios;
-GO
-CREATE TABLE prod.Ordinarios(
-    gasto_ord_id        INT IDENTITY(1,1) NOT NULL,
-    expensa_id          INT               NOT NULL,
-    pc_id               INT               NOT NULL,
-    tipo_gasto_ordinario VARCHAR(50)      NOT NULL,
-    nro_factura         VARCHAR(50)       NULL,
-    importe             DECIMAL(12,2)     NOT NULL,
-    CONSTRAINT PK_Ordinarios PRIMARY KEY CLUSTERED(gasto_ord_id),
-    CONSTRAINT FK_Ord_Expensa FOREIGN KEY(expensa_id)
-        REFERENCES prod.Expensa(expensa_id) ON UPDATE NO ACTION ON DELETE CASCADE,
-    CONSTRAINT FK_Ord_ProveedorConsorcio FOREIGN KEY(pc_id)
-        REFERENCES prod.ProveedorConsorcio(pc_id) ON UPDATE NO ACTION ON DELETE CASCADE,
-    CONSTRAINT CK_Ord_Importe CHECK (importe > 0)
-);
-GO
 
 -- indices utiles
 CREATE NONCLUSTERED INDEX IdX_UF_Consorcio ON prod.UnidadFuncional(consorcio_id);
@@ -334,9 +333,9 @@ CREATE UNIQUE NONCLUSTERED INDEX IdX_Persona_CBU ON prod.Persona(cbu_cvu) INCLUD
 
 CREATE NONCLUSTERED INDEX IdX_UF_PisoDepto ON prod.UnidadFuncional(consorcio_id, piso, depto) INCLUDE (uf_id, coeficiente);
 
-CREATE NONCLUSTERED INDEX IdX_Pago_Titular ON prod.Pago(cbu_cvu_origen, fecha) INCLUDE (importe, estado, expensa_id);
+CREATE NONCLUSTERED INDEX IdX_Pago_Titular ON prod.Pago(titular_unidad_id, fecha) INCLUDE (importe, estado, expensa_id);
 
-CREATE NONCLUSTERED INDEX IdX_Pago_Estado ON prod.Pago(estado) INCLUDE (expensa_id, importe, fecha, cbu_cvu_origen);
+CREATE NONCLUSTERED INDEX IdX_Pago_Estado ON prod.Pago(estado) INCLUDE (expensa_id, importe, fecha, titular_unidad_id);
 
 CREATE NONCLUSTERED INDEX IdX_Expensa_Cons_Per ON prod.Expensa(consorcio_id, periodo) INCLUDE (total, vencimiento1, vencimiento2);
 
