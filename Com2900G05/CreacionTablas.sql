@@ -39,7 +39,7 @@ IF EXISTS (SELECT * FROM sys.schemas WHERE name = 'prod')
       AND i.is_primary_key = 0            
       AND i.is_unique_constraint = 0;     
 
-    -- Eliminar claves foráneas del esquema
+    -- Eliminar claves forÃ¡neas del esquema
     SELECT @sql = @sql + 'ALTER TABLE [' + s.name + '].[' + t.name + '] DROP CONSTRAINT [' + fk.name + '];' + CHAR(13)
     FROM sys.foreign_keys fk
     JOIN sys.tables t ON fk.parent_object_id = t.object_id
@@ -312,8 +312,8 @@ CREATE TABLE prod.ProveedorConsorcio(
   pc_id INT IDENTITY(1,1) PRIMARY KEY,
   proveedor_id  INT NOT NULL REFERENCES prod.Proveedor(proveedor_id),
   consorcio_id  INT NOT NULL REFERENCES prod.Consorcio(consorcio_id),
-  tipo_gasto    VARCHAR(80)  NOT NULL,           -- “GASTOS BANCARIOS”, “SERVICIOS PUBLICOS”, etc.
-  referencia    VARCHAR(80)  NULL,               -- “Cuenta 195329”, “Limptech”, etc.
+  tipo_gasto    VARCHAR(80)  NOT NULL,           -- Â“GASTOS BANCARIOSÂ”, Â“SERVICIOS PUBLICOSÂ”, etc.
+  referencia    VARCHAR(80)  NULL,               -- Â“Cuenta 195329Â”, Â“LimptechÂ”, etc.
   activo        BIT NOT NULL DEFAULT(1),
   CONSTRAINT UQ_ProvCons UNIQUE(proveedor_id, consorcio_id, tipo_gasto, referencia)
 );
