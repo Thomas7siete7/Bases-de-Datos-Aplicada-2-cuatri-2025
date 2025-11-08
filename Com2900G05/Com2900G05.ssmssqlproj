@@ -58,6 +58,12 @@
           <AssociatedConnUserName />
           <FullPath>ImportacionCSV-Personas.sql</FullPath>
         </FileNode>
+        <FileNode Name="ImportacionDeArchivos.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>ImportacionDeArchivos.sql</FullPath>
+        </FileNode>
         <FileNode Name="ImportacionJSON.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
@@ -69,12 +75,6 @@
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
           <AssociatedConnUserName />
           <FullPath>ImportacionTXT.sql</FullPath>
-        </FileNode>
-        <FileNode Name="ImportacionXLSX.sql">
-          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
-          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
-          <AssociatedConnUserName />
-          <FullPath>ImportacionXLSX.sql</FullPath>
         </FileNode>
       </Items>
     </LogicalFolder>

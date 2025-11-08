@@ -211,7 +211,7 @@ BEGIN
    AND UPPER(LTRIM(RTRIM(uf.depto))) COLLATE Latin1_General_CI_AI = ISNULL(j2.depto_norm,'');
 
   -- Resumen
-  SELECT
+  /*SELECT
     total_archivo      = (SELECT COUNT(*) FROM #UF_dbg),
     cbus_sin_persona   = (SELECT COUNT(*) FROM #J1_dbg WHERE persona_id IS NULL),
     consorcio_no_match = (SELECT COUNT(*) FROM #J2_dbg WHERE persona_id IS NOT NULL AND consorcio_id IS NULL),
@@ -227,7 +227,7 @@ BEGIN
   FROM #J3_dbg j3
   LEFT JOIN prod.UnidadFuncional uf
     ON uf.consorcio_id = j3.consorcio_id
-  WHERE j3.persona_id IS NOT NULL AND j3.consorcio_id IS NOT NULL AND j3.uf_id IS NULL;
+  WHERE j3.persona_id IS NOT NULL AND j3.consorcio_id IS NOT NULL AND j3.uf_id IS NULL;*/
 END
 GO
 

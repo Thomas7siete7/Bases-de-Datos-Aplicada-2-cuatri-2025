@@ -119,7 +119,7 @@ BEGIN
               SELECT 1
               FROM prod.UnidadFuncional F
               WHERE F.consorcio_id = C.consorcio_id
-                AND F.piso  = CASE WHEN UPPER(R.Piso) IN ('PB','PA') THEN UPPER(R.Piso) ELSE RIGHT('  ' + R.Piso, 2) END
+                AND F.piso  = CASE WHEN UPPER(R.Piso) = 'PB' THEN 'PB' ELSE RIGHT('  ' + R.Piso, 2) END 
                 AND F.depto = LEFT(R.Departamento,1)
           );
 
@@ -138,7 +138,7 @@ BEGIN
           ON C.nombre COLLATE Latin1_General_CI_AI = R.NombreConsorcio COLLATE Latin1_General_CI_AI
         JOIN prod.UnidadFuncional F
           ON F.consorcio_id = C.consorcio_id
-         AND F.piso  = CASE WHEN UPPER(R.Piso) IN ('PB','PA') THEN UPPER(R.Piso) ELSE RIGHT('  ' + R.Piso, 2) END
+         AND F.piso  = CASE WHEN UPPER(R.Piso) = 'PB' THEN 'PB' ELSE RIGHT('  ' + R.Piso, 2) END 
          AND F.depto = LEFT(R.Departamento,1);
 
         /* 6) Accesorios: BAULERA */

@@ -59,7 +59,7 @@ BEGIN
     nombre   = LEFT(LTRIM(RTRIM(ISNULL(r.nombre_txt,''))), 50),
     apellido = LEFT(LTRIM(RTRIM(ISNULL(r.apellido_txt,''))), 50),
 
-    -- DNI: solo dígitos
+    -- DNI: solo dígitos (se mantiene como dato pero ya no es la clave)
     dni = TRY_CAST((
             SELECT (
                SELECT SUBSTRING(r.dni_txt, n.n, 1) AS [text()]
@@ -105,7 +105,7 @@ BEGIN
   INTO #P
   FROM #rawP r;
 
-  /* ============== 3) FILTRADO ============== */
+  /* ============== 3) FILTRADO (POR CBU VÁLIDO) ============== */
   IF OBJECT_ID('tempdb..#P_ok') IS NOT NULL DROP TABLE #P_ok;
   SELECT
     nombre,
@@ -117,27 +117,17 @@ BEGIN
     inquilino
   INTO #P_ok
   FROM #P
-  WHERE dni IS NOT NULL
+  WHERE cbu_cvu IS NOT NULL
+    AND LEN(cbu_cvu) = 22          -- CBU bien formado
     AND NULLIF(nombre,'')   IS NOT NULL
     AND NULLIF(apellido,'') IS NOT NULL;
 
-  /* ============== 4) DEDUPE POR DNI (sin perder personas por conflicto de CBU) ============== */
+  /* ============== 4) DEDUPE POR CBU (una fila por CBU en el archivo) ============== */
   IF OBJECT_ID('tempdb..#P_best') IS NOT NULL DROP TABLE #P_best;
 
   ;WITH Base AS (
     SELECT
       p.*,
-      cbu_valido  = CASE WHEN p.cbu_cvu IS NOT NULL AND LEN(p.cbu_cvu)=22 THEN 1 ELSE 0 END,
-      cbu_conflicto = CASE
-                        WHEN p.cbu_cvu IS NULL OR LEN(p.cbu_cvu) <> 22 THEN 0
-                        WHEN EXISTS (
-                               SELECT 1
-                               FROM prod.Persona x
-                               WHERE x.cbu_cvu = p.cbu_cvu
-                                 AND x.dni <> p.dni
-                             )
-                        THEN 1 ELSE 0
-                      END,
       email_ok = CASE WHEN p.email LIKE '%@%' THEN 1 ELSE 0 END
     FROM #P_ok p
   ),
@@ -145,13 +135,10 @@ BEGIN
     SELECT
       *,
       ROW_NUMBER() OVER (
-        PARTITION BY dni
+        PARTITION BY cbu_cvu
         ORDER BY
-          cbu_conflicto ASC,   -- preferir CBU sin conflicto
-          cbu_valido DESC,
           email_ok DESC,
-          (LEN(nombre)+LEN(apellido)) DESC,
-          cbu_cvu DESC
+          (LEN(nombre) + LEN(apellido)) DESC
       ) AS rn
     FROM Base
   )
@@ -161,48 +148,31 @@ BEGIN
     dni,
     email,
     telefono,
-    cbu_cvu = CASE WHEN cbu_conflicto = 1 THEN NULL ELSE cbu_cvu END,
+    cbu_cvu,
     inquilino
   INTO #P_best
   FROM Rankeado
   WHERE rn = 1;
 
-  /* ============== 5) MERGE prod.Persona (clave = DNI) ============== */
+  /* ============== 5) MERGE prod.Persona (clave = CBU) ============== */
   BEGIN TRY
     BEGIN TRAN;
 
       MERGE prod.Persona AS D
       USING (SELECT nombre, apellido, dni, email, telefono, cbu_cvu, inquilino FROM #P_best) AS S
-        ON D.dni = S.dni
+        ON D.cbu_cvu = S.cbu_cvu          -- <<< ahora la clave del MERGE es el CBU
       WHEN MATCHED THEN
         UPDATE SET 
-          D.nombre   = S.nombre,
-          D.apellido = S.apellido,
-          D.email    = S.email,
-          D.telefono = S.telefono,
-          D.inquilino = S.inquilino,
-          D.cbu_cvu  = CASE 
-                         WHEN S.cbu_cvu IS NOT NULL
-                          AND LEN(S.cbu_cvu)=22
-                          AND NOT EXISTS (
-                               SELECT 1
-                               FROM prod.Persona P2
-                               WHERE P2.cbu_cvu = S.cbu_cvu
-                                 AND P2.persona_id <> D.persona_id
-                             )
-                         THEN S.cbu_cvu
-                         ELSE D.cbu_cvu
-                       END
+          D.nombre    = S.nombre,
+          D.apellido  = S.apellido,
+          D.dni       = S.dni,            -- se actualiza el DNI según archivo
+          D.email     = S.email,
+          D.telefono  = S.telefono,
+          D.inquilino = S.inquilino
+          -- D.cbu_cvu queda igual: ya es la clave por la que matchea
       WHEN NOT MATCHED THEN
         INSERT(nombre, apellido, email, dni, telefono, cbu_cvu, inquilino)
-        VALUES(S.nombre, S.apellido, S.email, S.dni, S.telefono,
-               CASE 
-                 WHEN S.cbu_cvu IS NOT NULL AND LEN(S.cbu_cvu)=22
-                   AND NOT EXISTS (SELECT 1 FROM prod.Persona P2 WHERE P2.cbu_cvu = S.cbu_cvu)
-                 THEN S.cbu_cvu
-                 ELSE NULL
-               END,
-               S.inquilino);
+        VALUES(S.nombre, S.apellido, S.email, S.dni, S.telefono, S.cbu_cvu, S.inquilino);
 
     COMMIT;
   END TRY
@@ -212,16 +182,17 @@ BEGIN
   END CATCH;
 
   /* ============== 6) DIAGNÓSTICO ============== */
-  SELECT 
+/*  SELECT 
     personas_archivo_total  = (SELECT COUNT(*) FROM #P),
     personas_filtradas_ok   = (SELECT COUNT(*) FROM #P_ok),
     personas_dedupe_final   = (SELECT COUNT(*) FROM #P_best),
     personas_insertadas     = (SELECT COUNT(*) FROM prod.Persona),
     inquilinos_total        = (SELECT COUNT(*) FROM prod.Persona WHERE inquilino = 1),
-    propietarios_total      = (SELECT COUNT(*) FROM prod.Persona WHERE inquilino = 0);
+    propietarios_total      = (SELECT COUNT(*) FROM prod.Persona WHERE inquilino = 0);*/
 
 END
 GO
+
 
 EXEC prod.sp_CargarPersonas_desdeDatos
   @path_datos = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Inquilino-propietarios-datos.csv';

@@ -328,7 +328,7 @@ CREATE NONCLUSTERED INDEX IdX_Pago_expensa ON prod.Pago(expensa_id, fecha);
 
 CREATE NONCLUSTERED INDEX IdX_Factura_expensa ON prod.Factura(expensa_id);
 
-CREATE UNIQUE NONCLUSTERED INDEX IdX_Persona_DNI ON prod.Persona(dni) INCLUDE (nombre, apellido, persona_id);
+CREATE NONCLUSTERED INDEX IdX_Persona_DNI ON prod.Persona(dni) INCLUDE (nombre, apellido, persona_id);
 
 CREATE UNIQUE NONCLUSTERED INDEX IdX_Persona_CBU ON prod.Persona(cbu_cvu) INCLUDE (nombre, apellido, persona_id);
 
