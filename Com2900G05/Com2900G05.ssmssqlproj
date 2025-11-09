@@ -22,59 +22,59 @@
     </LogicalFolder>
     <LogicalFolder Name="Consultas" Type="0" Sorted="true">
       <Items>
+        <FileNode Name="01_CreacionBD.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>01_CreacionBD.sql</FullPath>
+        </FileNode>
+        <FileNode Name="02_CreacionTablas.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>02_CreacionTablas.sql</FullPath>
+        </FileNode>
+        <FileNode Name="03_ImportacionDeArchivos.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>03_ImportacionDeArchivos.sql</FullPath>
+        </FileNode>
+        <FileNode Name="04_AltaDatos.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>04_AltaDatos.sql</FullPath>
+        </FileNode>
+        <FileNode Name="05_BajaDatos.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>05_BajaDatos.sql</FullPath>
+        </FileNode>
+        <FileNode Name="06_PruebasAltas.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>06_PruebasAltas.sql</FullPath>
+        </FileNode>
+        <FileNode Name="07_PruebasBajas.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>07_PruebasBajas.sql</FullPath>
+        </FileNode>
+        <FileNode Name="08_GeneracionAutomatica.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>08_GeneracionAutomatica.sql</FullPath>
+        </FileNode>
         <FileNode Name="Comprobacion_tablas.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
           <AssociatedConnUserName />
           <FullPath>Comprobacion_tablas.sql</FullPath>
-        </FileNode>
-        <FileNode Name="CreacionBD.sql">
-          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
-          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
-          <AssociatedConnUserName />
-          <FullPath>CreacionBD.sql</FullPath>
-        </FileNode>
-        <FileNode Name="CreacionTablas.sql">
-          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
-          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
-          <AssociatedConnUserName />
-          <FullPath>CreacionTablas.sql</FullPath>
-        </FileNode>
-        <FileNode Name="ImportacionCSV-Inquilino-Propietario.sql">
-          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
-          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
-          <AssociatedConnUserName />
-          <FullPath>ImportacionCSV-Inquilino-Propietario.sql</FullPath>
-        </FileNode>
-        <FileNode Name="ImportacionCSV-Pagos.sql">
-          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
-          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
-          <AssociatedConnUserName />
-          <FullPath>ImportacionCSV-Pagos.sql</FullPath>
-        </FileNode>
-        <FileNode Name="ImportacionCSV-Personas.sql">
-          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
-          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
-          <AssociatedConnUserName />
-          <FullPath>ImportacionCSV-Personas.sql</FullPath>
-        </FileNode>
-        <FileNode Name="ImportacionDeArchivos.sql">
-          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
-          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
-          <AssociatedConnUserName />
-          <FullPath>ImportacionDeArchivos.sql</FullPath>
-        </FileNode>
-        <FileNode Name="ImportacionJSON.sql">
-          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
-          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
-          <AssociatedConnUserName />
-          <FullPath>ImportacionJSON.sql</FullPath>
-        </FileNode>
-        <FileNode Name="ImportacionTXT.sql">
-          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
-          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
-          <AssociatedConnUserName />
-          <FullPath>ImportacionTXT.sql</FullPath>
         </FileNode>
       </Items>
     </LogicalFolder>

@@ -939,7 +939,7 @@ BEGIN
     FROM #Flat f
   ),
   PCNorm AS (
-    SELECT pc.pc_id, pc.consorcio_id, pc.activo,
+    SELECT pc.pc_id, pc.consorcio_id, pc.borrado,
            pc_tipo_norm = UPPER(
              REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
                TRANSLATE(pc.tipo_gasto, N'¡…Õ”⁄·ÈÌÛ˙‹¸', N'AEIOUaeiouUu'),
@@ -991,7 +991,7 @@ BEGIN
     SELECT fc.expensa_id, fc.consorcio_id, fc.rubro, fc.importe, fc.periodo, pc.pc_id,
            ROW_NUMBER() OVER (
              PARTITION BY fc.expensa_id, fc.rubro
-             ORDER BY pc.activo DESC, pc.pc_id
+             ORDER BY pc.borrado DESC, pc.pc_id
            ) AS rn
     FROM FlatClas fc
     JOIN Mapa m
@@ -1273,7 +1273,7 @@ BEGIN
     THROW;
   END CATCH;
 
-  /* 6) Resumen / Debug 
+  /*6) Resumen / Debug 
   SELECT 
     filas_ok           = (SELECT COUNT(*) FROM #ok),
     insert_asociados   = (SELECT COUNT(*) FROM #match WHERE estado_calc='ASOCIADO'),
@@ -1306,13 +1306,15 @@ EXEC prod.sp_ImportarUF_TXT
 EXEC prod.sp_CargarPersonas_CSV
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Inquilino-propietarios-datos.csv';
 
-EXEC prod.sp_ImportarPagos_CSV
-  @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\pagos_consorcios.csv';
-
 EXEC prod.sp_CargarTitularidad_desdeUF
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Inquilino-propietarios-UF.csv';
 
 EXEC prod.sp_ImportarServicios_JSON 
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Servicios.Servicios.json',
   @anio = 2025;
+
+EXEC prod.sp_ImportarPagos_CSV
+  @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\pagos_consorcios.csv';
+
+
 
