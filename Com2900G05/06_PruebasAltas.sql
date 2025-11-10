@@ -5,7 +5,9 @@ PRINT '=== INICIO LOTE DE PRUEBAS - ALTAS (VALIDAS + INVALIDAS) ===';
 
 DECLARE 
     @idConsorcio       INT,
+    @idConsorcio2      INT,
     @idUF              INT,
+    @idUF2             INT,
     @idPersona         INT,
     @idTitularidad     INT,
     @idExpensa         INT,
@@ -14,520 +16,694 @@ DECLARE
     @idOrdinario       INT,
     @idExtra           INT,
     @idMora            INT,
-    @idUA              INT,
+    @idUA_Baulera      INT,
+    @idUA_Cochera      INT,
     @idFactura         INT,
     @idPago            INT,
     @hoy               DATE;
 
 SET @hoy = CAST(GETDATE() AS DATE);
 
-/*=========================================
-  1) Alta Consorcio
-  =========================================*/
-DECLARE @tCons TABLE (consorcio_id INT);
+PRINT '=== PARTE 1: ALTAS VALIDAS EN ORDEN CORRECTO ===';
 
-INSERT INTO @tCons(consorcio_id)
+-------------------------------------------
+-- 1) Alta CONSORCIO válido
+-------------------------------------------
+DECLARE 
+    @idOut INT;
+
+PRINT 'A1) Alta Consorcio válido...';
+
 EXEC prod.sp_AltaConsorcio
-    @nombre        = 'CONSORCIO DEMO',
-    @direccion     = 'Av. Siempre Viva 742',
-    @cant_unidades = 10,
-    @cant_m2_total = 800;
+     @nombre        = 'Consorcio_Pruebas_Altas',
+     @direccion     = 'Calle Altas 123',
+     @cant_unidades = 10,
+     @cant_m2_total = 300;
 
-SELECT @idConsorcio = consorcio_id FROM @tCons;
+SELECT @idConsorcio = MAX(consorcio_id)
+FROM prod.Consorcio
+WHERE nombre    = 'Consorcio_Pruebas_Altas'
+  AND direccion = 'Calle Altas 123'
+  AND borrado   = 0;
 
-PRINT 'Consorcio creado: ' + CAST(@idConsorcio AS VARCHAR(10));
+PRINT '   -> consorcio_id = ' + CAST(@idConsorcio AS VARCHAR(10));
 
-/*=========================================
-  2) Alta Unidad Funcional
-  =========================================*/
-DECLARE @tUF TABLE (uf_id INT);
+-------------------------------------------
+-- 2) Alta PROVEEDOR válido
+-------------------------------------------
+PRINT 'A2) Alta Proveedor válido...';
 
-INSERT INTO @tUF(uf_id)
-EXEC prod.sp_AltaUnidadFuncional
-    @consorcio_id = @idConsorcio,
-    @piso         = '01',
-    @depto        = 'A',
-    @cant_m2      = 80,
-    @coeficiente  = 10.00;
-
-SELECT @idUF = uf_id FROM @tUF;
-
-PRINT 'UF creada: ' + CAST(@idUF AS VARCHAR(10));
-
-/*=========================================
-  3) Alta Persona
-  =========================================*/
-DECLARE @tPer TABLE (persona_id INT);
-
-INSERT INTO @tPer(persona_id)
-EXEC prod.sp_AltaPersona
-    @nombre    = 'ANA',
-    @apellido  = 'GARCIA',
-    @email     = 'ana.garcia@example.com',
-    @dni       = 30111222,
-    @telefono  = 1122334455,
-    @cbu_cvu   = '1111222233334444555566',
-    @inquilino = 0;  -- PROPIETARIA
-
-SELECT @idPersona = persona_id FROM @tPer;
-
-PRINT 'Persona creada: ' + CAST(@idPersona AS VARCHAR(10));
-
-/*=========================================
-  4) Alta Titularidad (fecha_desde = fecha del sistema)
-  =========================================*/
-DECLARE @tTit TABLE (titular_unidad_id INT);
-
-INSERT INTO @tTit(titular_unidad_id)
-EXEC prod.sp_AltaTitularidad
-    @persona_id       = @idPersona,
-    @uf_id            = @idUF,
-    @tipo_titularidad = 'PROPIETARIO';
-    -- @fecha_desde se toma por defecto dentro del SP (GETDATE)
-
-SELECT @idTitularidad = titular_unidad_id FROM @tTit;
-
-PRINT 'Titularidad creada: ' + CAST(@idTitularidad AS VARCHAR(10));
-
-/*=========================================
-  5) Alta Expensa (periodo y vtos con fecha del sistema)
-  =========================================*/
-DECLARE @tExp TABLE (expensa_id INT);
-
-INSERT INTO @tExp(expensa_id)
-EXEC prod.sp_AltaExpensa
-    @consorcio_id = @idConsorcio,
-    @total        = 50000,   -- ejemplo
-    @dias_vto1    = 10,
-    @dias_vto2    = 20;
-
-SELECT @idExpensa = expensa_id FROM @tExp;
-
-PRINT 'Expensa creada: ' + CAST(@idExpensa AS VARCHAR(10));
-
-/*=========================================
-  6) Alta Proveedor
-  =========================================*/
-DECLARE @tProv TABLE (proveedor_id INT);
-
-INSERT INTO @tProv(proveedor_id)
 EXEC prod.sp_AltaProveedor
-    @nombre = 'LIMPIEZAS S.A.';
+     @nombre = 'Proveedor_Pruebas_Altas';
 
-SELECT @idProveedor = proveedor_id FROM @tProv;
+SELECT @idProveedor = MAX(proveedor_id)
+FROM prod.Proveedor
+WHERE nombre  = 'Proveedor_Pruebas_Altas'
+  AND borrado = 0;
 
-PRINT 'Proveedor creado: ' + CAST(@idProveedor AS VARCHAR(10));
+PRINT '   -> proveedor_id = ' + CAST(@idProveedor AS VARCHAR(10));
 
-/*=========================================
-  7) Alta ProveedorConsorcio
-  =========================================*/
-DECLARE @tPC TABLE (pc_id INT);
+-------------------------------------------
+-- 3) Alta PROVEEDOR_CONSORCIO válido
+-------------------------------------------
+PRINT 'A3) Alta ProveedorConsorcio válido...';
 
-INSERT INTO @tPC(pc_id)
 EXEC prod.sp_AltaProveedorConsorcio
-    @proveedor_id = @idProveedor,
-    @consorcio_id = @idConsorcio,
-    @tipo_gasto   = 'LIMPIEZA',
-    @referencia   = 'ABONO MENSUAL';
+     @proveedor_id = @idProveedor,
+     @consorcio_id = @idConsorcio,
+     @tipo_gasto   = 'LIMPIEZA',
+     @referencia   = 'Prueba Altas';
 
-SELECT @idPC = pc_id FROM @tPC;
+SELECT @idPC = MAX(pc_id)
+FROM prod.ProveedorConsorcio
+WHERE proveedor_id = @idProveedor
+  AND consorcio_id = @idConsorcio
+  AND tipo_gasto   = 'LIMPIEZA'
+  AND ISNULL(referencia,'') = 'Prueba Altas'
+  AND borrado      = 0;
 
-PRINT 'ProveedorConsorcio creado: ' + CAST(@idPC AS VARCHAR(10));
+PRINT '   -> pc_id = ' + CAST(@idPC AS VARCHAR(10));
 
-/*=========================================
-  8) Alta Gasto Ordinario
-  =========================================*/
-DECLARE @tOrd TABLE (gasto_ord_id INT);
+-------------------------------------------
+-- 4) Alta PERSONA válida
+-------------------------------------------
+PRINT 'A4) Alta Persona válida...';
 
-INSERT INTO @tOrd(gasto_ord_id)
-EXEC prod.sp_AltaOrdinario
-    @expensa_id           = @idExpensa,
-    @pc_id                = @idPC,
-    @tipo_gasto_ordinario = 'LIMPIEZA EDIFICIO',
-    @nro_factura          = 'LIM-0001',
-    @importe              = 30000;
+EXEC prod.sp_AltaPersona
+     @nombre    = 'Juan',
+     @apellido  = 'Altas',
+     @email     = 'juan.altas@example.com',
+     @dni       = 40123456,
+     @telefono  = 114001234,
+     @cbu_cvu   = '0000000000000000000123',
+     @inquilino = 0;
 
-SELECT @idOrdinario = gasto_ord_id FROM @tOrd;
+SELECT @idPersona = MAX(persona_id)
+FROM prod.Persona
+WHERE cbu_cvu = '0000000000000000000123'
+  AND borrado = 0;
 
-PRINT 'Ordinario creado: ' + CAST(@idOrdinario AS VARCHAR(10));
+PRINT '   -> persona_id = ' + CAST(@idPersona AS VARCHAR(10));
 
-/*=========================================
-  9) Alta Gasto Extraordinario
-  =========================================*/
-DECLARE @tExt TABLE (gasto_id_extra INT);
+-------------------------------------------
+-- 5) Alta UNIDAD FUNCIONAL válida (respetando m2)
+-------------------------------------------
+PRINT 'A5) Alta UnidadFuncional válida...';
 
-INSERT INTO @tExt(gasto_id_extra)
-EXEC prod.sp_AltaExtraordinario
-    @expensa_id         = @idExpensa,
-    @categoria          = 'PINTURA FRENTE',
-    @total_cuotas       = 6,
-    @cuota_actual       = 1,
-    @valor_cuota_actual = 8000;
+EXEC prod.sp_AltaUnidadFuncional
+     @consorcio_id = @idConsorcio,
+     @piso         = '01',
+     @depto        = 'A',
+     @cant_m2      = 60,   -- 60 de 300, deja margen
+     @coeficiente  = 0;    -- se recalcula dentro del SP
 
-SELECT @idExtra = gasto_id_extra FROM @tExt;
+SELECT @idUF = MAX(uf_id)
+FROM prod.UnidadFuncional
+WHERE consorcio_id = @idConsorcio
+  AND piso         = '01'
+  AND depto        = 'A'
+  AND borrado      = 0;
 
-PRINT 'Extraordinario creado: ' + CAST(@idExtra AS VARCHAR(10));
+PRINT '   -> uf_id = ' + CAST(@idUF AS VARCHAR(10));
 
-/*=========================================
-  10) Alta Mora
-  =========================================*/
-DECLARE @tMora TABLE (mora_id INT);
+-------------------------------------------
+-- 6) Alta UNIDAD ACCESORIA BAULERA válida
+-------------------------------------------
+PRINT 'A6) Alta UnidadAccesoria BAULERA válida...';
 
-INSERT INTO @tMora(mora_id)
-EXEC prod.sp_AltaMora
-    @expensa_id       = @idExpensa,
-    @fecha_aplicacion = @hoy,
-    @interes          = 0.0500,
-    @importe          = 5000;
-
-SELECT @idMora = mora_id FROM @tMora;
-
-PRINT 'Mora creada: ' + CAST(@idMora AS VARCHAR(10));
-
-/*=========================================
-  11) Alta Unidad Accesoria
-  =========================================*/
-DECLARE @tUA TABLE (ua_id INT);
-
-INSERT INTO @tUA(ua_id)
 EXEC prod.sp_AltaUnidadAccesoria
-    @uf_id          = @idUF,
-    @m2_accesorio   = 12,
-    @tipo_accesorio = 'COCHERA';
+     @uf_id          = @idUF,
+     @m2_accesorio   = 10,
+     @tipo_accesorio = 'BAULERA';
 
-SELECT @idUA = ua_id FROM @tUA;
+SELECT @idUA_Baulera = MAX(ua_id)
+FROM prod.UnidadAccesoria
+WHERE uf_id         = @idUF
+  AND tipo_accesorio = 'BAULERA'
+  AND borrado       = 0;
 
-PRINT 'UnidadAccesoria creada: ' + CAST(@idUA AS VARCHAR(10));
+PRINT '   -> ua_id (baulera) = ' + CAST(@idUA_Baulera AS VARCHAR(10));
 
-/*=========================================
-  12) Alta Factura
-  =========================================*/
-DECLARE @tFact TABLE (factura_id INT);
+-------------------------------------------
+-- 7) Alta UNIDAD ACCESORIA COCHERA válida
+-------------------------------------------
+PRINT 'A7) Alta UnidadAccesoria COCHERA válida...';
 
-INSERT INTO @tFact(factura_id)
+EXEC prod.sp_AltaUnidadAccesoria
+     @uf_id          = @idUF,
+     @m2_accesorio   = 15,
+     @tipo_accesorio = 'COCHERA';
+
+SELECT @idUA_Cochera = MAX(ua_id)
+FROM prod.UnidadAccesoria
+WHERE uf_id         = @idUF
+  AND tipo_accesorio = 'COCHERA'
+  AND borrado       = 0;
+
+PRINT '   -> ua_id (cochera) = ' + CAST(@idUA_Cochera AS VARCHAR(10));
+
+-------------------------------------------
+-- 8) Alta EXPENSA válida (con @fecha_periodo)
+-------------------------------------------
+PRINT 'A8) Alta Expensa válida...';
+
+EXEC prod.sp_AltaExpensa
+     @consorcio_id  = @idConsorcio,
+     @total         = 50000.00,
+     @fecha_periodo = @hoy,    -- NUEVO: se toma el mes de @hoy
+     @dias_vto1     = 10,
+     @dias_vto2     = 20;
+
+SELECT @idExpensa = MAX(expensa_id)
+FROM prod.Expensa
+WHERE consorcio_id = @idConsorcio
+  AND borrado      = 0;
+
+PRINT '   -> expensa_id = ' + CAST(@idExpensa AS VARCHAR(10));
+
+-------------------------------------------
+-- 9) Alta EXTRAORDINARIO válido
+-------------------------------------------
+PRINT 'A9) Alta Extraordinario válido...';
+
+EXEC prod.sp_AltaExtraordinario
+     @expensa_id         = @idExpensa,
+     @categoria          = 'PINTURA FACHADA',
+     @total_cuotas       = 6,
+     @cuota_actual       = 1,
+     @valor_cuota_actual = 8000.00;
+
+SELECT @idExtra = MAX(gasto_id_extra)
+FROM prod.Extraordinarios
+WHERE expensa_id = @idExpensa
+  AND borrado    = 0;
+
+PRINT '   -> gasto_id_extra = ' + CAST(@idExtra AS VARCHAR(10));
+
+-------------------------------------------
+-- 10) Alta FACTURA válida
+-------------------------------------------
+PRINT 'A10) Alta Factura válida...';
+
 EXEC prod.sp_AltaFactura
-    @expensa_id             = @idExpensa,
-    @nro_comprobante        = 'FAC-0001',
-    @tipo_factura           = 'B',
-    @condicion_iva_receptor = 'CONSUMID',
-    @cae                    = '12345678901234',
-    @monto_total            = 93000,
-    @fecha_emision          = @hoy,
-    @estado                 = 'A',
-    @saldo_anterior         = 0;
+     @expensa_id             = @idExpensa,
+     @nro_comprobante        = 'FA-0001-00000001',
+     @tipo_factura           = 'A',
+     @condicion_iva_receptor = 'RI',
+     @cae                    = '12345678901234',
+     @monto_total            = 50000.00,
+     @fecha_emision          = @hoy,
+     @estado                 = 'A',
+     @saldo_anterior         = 0.00;
 
-SELECT @idFactura = factura_id FROM @tFact;
+SELECT @idFactura = MAX(factura_id)
+FROM prod.Factura
+WHERE nro_comprobante = 'FA-0001-00000001';
 
-PRINT 'Factura creada: ' + CAST(@idFactura AS VARCHAR(10));
+PRINT '   -> factura_id = ' + CAST(@idFactura AS VARCHAR(10));
 
-/*=========================================
-  13) Alta Pago
-  =========================================*/
-DECLARE @tPago TABLE (pago_id INT);
+-------------------------------------------
+-- 11) Alta MORA válida
+-------------------------------------------
+PRINT 'A11) Alta Mora válida...';
 
-INSERT INTO @tPago(pago_id)
+DECLARE @fechaMora DATE = DATEADD(DAY, 30, @hoy);
+
+EXEC prod.sp_AltaMora
+     @expensa_id       = @idExpensa,
+     @fecha_aplicacion = @fechaMora,
+     @interes          = 0.0500,  -- 5%
+     @importe          = 2500.00;
+
+SELECT @idMora = MAX(mora_id)
+FROM prod.Mora
+WHERE expensa_id = @idExpensa
+  AND borrado    = 0;
+
+PRINT '   -> mora_id = ' + CAST(@idMora AS VARCHAR(10));
+
+-------------------------------------------
+-- 12) Alta ORDINARIO válido
+-------------------------------------------
+PRINT 'A12) Alta Ordinario válido...';
+
+EXEC prod.sp_AltaOrdinario
+     @expensa_id            = @idExpensa,
+     @pc_id                 = @idPC,
+     @tipo_gasto_ordinario  = 'LIMPIEZA MENSUAL',
+     @nro_factura           = 'OR-001',
+     @importe               = 15000.00;
+
+SELECT @idOrdinario = MAX(gasto_ord_id)
+FROM prod.Ordinarios
+WHERE expensa_id = @idExpensa
+  AND borrado    = 0;
+
+PRINT '   -> gasto_ord_id = ' + CAST(@idOrdinario AS VARCHAR(10));
+
+-------------------------------------------
+-- 13) Alta TITULARIDAD válida
+-------------------------------------------
+PRINT 'A13) Alta Titularidad válida...';
+
+EXEC prod.sp_AltaTitularidad
+     @persona_id       = @idPersona,
+     @uf_id            = @idUF,
+     @tipo_titularidad = 'PROPIETARIO';
+
+SELECT @idTitularidad = MAX(titular_unidad_id)
+FROM prod.Titularidad
+WHERE persona_id = @idPersona
+  AND uf_id      = @idUF;
+
+PRINT '   -> titular_unidad_id = ' + CAST(@idTitularidad AS VARCHAR(10));
+
+-------------------------------------------
+-- 14) Alta PAGO válida
+-------------------------------------------
+PRINT 'A14) Alta Pago válido...';
+
 EXEC prod.sp_AltaPago
-    @expensa_id      = @idExpensa,
-    @fecha           = @hoy,
-    @importe         = 50000,
-    @nro_transaccion = 'TX-0001',
-    @estado          = 'ASOCIADO',
-    @cbu_cvu_origen  = '1111222233334444555566';
+     @expensa_id      = @idExpensa,
+     @fecha           = @hoy,
+     @importe         = 20000.00,
+     @nro_transaccion = 'PAGO-0001',
+     @estado          = 'APLICADO',
+     @cbu_cvu_origen  = '0000000000000000000999';
 
-SELECT @idPago = pago_id FROM @tPago;
+SELECT @idPago = MAX(pago_id)
+FROM prod.Pago
+WHERE nro_transaccion = 'PAGO-0001'
+  AND borrado = 0;
 
-PRINT 'Pago creado: ' + CAST(@idPago AS VARCHAR(10));
+PRINT '   -> pago_id = ' + CAST(@idPago AS VARCHAR(10));
 
-/*=========================================
-  VERIFICACIÓN RÁPIDA
-  =========================================*/
-PRINT '=== DATOS CREADOS (VALIDOS) ===';
+-------------------------------------------
+-- ESTADO DESPUES DE ALTAS VALIDAS
+-------------------------------------------
+PRINT '=== ESTADO DESPUES DE ALTAS VALIDAS ===';
 
-SELECT * FROM prod.Consorcio          WHERE consorcio_id  = @idConsorcio;
-SELECT * FROM prod.UnidadFuncional    WHERE uf_id         = @idUF;
-SELECT * FROM prod.Persona            WHERE persona_id    = @idPersona;
-SELECT * FROM prod.Titularidad        WHERE titular_unidad_id = @idTitularidad;
-SELECT * FROM prod.Expensa            WHERE expensa_id    = @idExpensa;
-SELECT * FROM prod.Proveedor          WHERE proveedor_id  = @idProveedor;
-SELECT * FROM prod.ProveedorConsorcio WHERE pc_id         = @idPC;
-SELECT * FROM prod.Ordinarios         WHERE gasto_ord_id  = @idOrdinario;
-SELECT * FROM prod.Extraordinarios    WHERE gasto_id_extra= @idExtra;
-SELECT * FROM prod.Mora               WHERE mora_id       = @idMora;
-SELECT * FROM prod.UnidadAccesoria    WHERE ua_id         = @idUA;
-SELECT * FROM prod.Factura            WHERE factura_id    = @idFactura;
-SELECT * FROM prod.Pago               WHERE pago_id       = @idPago;
+SELECT consorcio_id, nombre, direccion, cant_m2_total, borrado
+FROM prod.Consorcio
+WHERE consorcio_id = @idConsorcio;
 
-PRINT '=== PRUEBAS DE OPERACIONES INVALIDAS (DEBEN FALLAR) ===';
+SELECT persona_id, nombre, apellido, cbu_cvu, borrado
+FROM prod.Persona
+WHERE persona_id = @idPersona;
 
-/*----------------------------------------
-  I1) AltaConsorcio duplicado (mismo nombre+dirección)
-  ----------------------------------------*/
+SELECT uf_id, consorcio_id, piso, depto, cant_m2, coeficiente, borrado
+FROM prod.UnidadFuncional
+WHERE uf_id = @idUF;
+
+SELECT ua_id, uf_id, tipo_accesorio, m2_accesorio, borrado
+FROM prod.UnidadAccesoria
+WHERE ua_id IN (@idUA_Baulera, @idUA_Cochera);
+
+SELECT expensa_id, consorcio_id, periodo, total, borrado
+FROM prod.Expensa
+WHERE expensa_id = @idExpensa;
+
+SELECT proveedor_id, nombre, borrado
+FROM prod.Proveedor
+WHERE proveedor_id = @idProveedor;
+
+SELECT pc_id, proveedor_id, consorcio_id, tipo_gasto, borrado
+FROM prod.ProveedorConsorcio
+WHERE pc_id = @idPC;
+
+SELECT gasto_ord_id, expensa_id, pc_id, importe, borrado
+FROM prod.Ordinarios
+WHERE gasto_ord_id = @idOrdinario;
+
+SELECT gasto_id_extra, expensa_id, categoria, total_cuotas, cuota_actual, valor_cuota_actual, borrado
+FROM prod.Extraordinarios
+WHERE gasto_id_extra = @idExtra;
+
+SELECT mora_id, expensa_id, fecha_aplicacion, interes, importe, borrado
+FROM prod.Mora
+WHERE mora_id = @idMora;
+
+SELECT factura_id, expensa_id, nro_comprobante, cae, monto_total, borrado
+FROM prod.Factura
+WHERE factura_id = @idFactura;
+
+SELECT pago_id, expensa_id, fecha, importe, nro_transaccion, estado, borrado
+FROM prod.Pago
+WHERE pago_id = @idPago;
+
+-------------------------------------------
+-- PARTE 2: PRUEBAS INVALIDAS DE ALTAS
+-------------------------------------------
+PRINT '=== PARTE 2: PRUEBAS INVALIDAS DE ALTAS (SE ESPERAN ERRORES) ===';
+
+-------------------------
+-- CONSORCIO
+-------------------------
 BEGIN TRY
-    PRINT 'I1) Intentando crear CONSORCIO duplicado...';
+    PRINT 'I1) Alta Consorcio duplicado (mismo nombre + dirección)...';
     EXEC prod.sp_AltaConsorcio
-        @nombre        = 'CONSORCIO DEMO',
-        @direccion     = 'Av. Siempre Viva 742',
-        @cant_unidades = 20,
-        @cant_m2_total = 900;
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+         @nombre        = 'Consorcio_Pruebas_Altas',
+         @direccion     = 'Calle Altas 123',
+         @cant_unidades = 10,
+         @cant_m2_total = 300;
+    PRINT '  [ERROR] No debería haberse podido dar de alta consorcio duplicado.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaConsorcio duplicado: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaConsorcio: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I2) AltaUnidadFuncional con consorcio inexistente
-  ----------------------------------------*/
+-------------------------
+-- PERSONA
+-------------------------
 BEGIN TRY
-    PRINT 'I2) Intentando crear UF con consorcio inexistente...';
-    EXEC prod.sp_AltaUnidadFuncional
-        @consorcio_id = -1,
-        @piso         = '02',
-        @depto        = 'B',
-        @cant_m2      = 60,
-        @coeficiente  = 8.00;
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaUF consorcio inexistente: ' + ERROR_MESSAGE();
-END CATCH;
-
-/*----------------------------------------
-  I3) AltaPersona con CBU duplicado
-  ----------------------------------------*/
-BEGIN TRY
-    PRINT 'I3) Intentando crear PERSONA con CBU duplicado...';
+    PRINT 'I2) Alta Persona duplicada por CBU/CVU...';
     EXEC prod.sp_AltaPersona
-        @nombre    = 'CARLOS',
-        @apellido  = 'PEREZ',
-        @email     = 'carlos@example.com',
-        @dni       = 30999888,
-        @telefono  = 1199998888,
-        @cbu_cvu   = '1111222233334444555566',  -- mismo CBU
-        @inquilino = 1;
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+         @nombre    = 'Juan2',
+         @apellido  = 'Altas2',
+         @email     = 'otro@example.com',
+         @dni       = 40123457,
+         @telefono  = 114001235,
+         @cbu_cvu   = '0000000000000000000123',  -- mismo CBU
+         @inquilino = 0;
+    PRINT '  [ERROR] No debería haberse podido dar de alta persona con mismo CBU.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaPersona CBU duplicado: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaPersona: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I4) AltaTitularidad duplicada (misma persona, UF y fecha_desde)
-  ----------------------------------------*/
+-------------------------
+-- UNIDAD FUNCIONAL
+-------------------------
 BEGIN TRY
-    PRINT 'I4) Intentando crear TITULARIDAD duplicada...';
-    EXEC prod.sp_AltaTitularidad
-        @persona_id       = @idPersona,
-        @uf_id            = @idUF,
-        @tipo_titularidad = 'PROPIETARIO';
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+    PRINT 'I3) Alta UF duplicada (mismo consorcio/piso/depto)...';
+    EXEC prod.sp_AltaUnidadFuncional
+         @consorcio_id = @idConsorcio,
+         @piso         = '01',   -- ya existe
+         @depto        = 'A',
+         @cant_m2      = 50,
+         @coeficiente  = 0;
+    PRINT '  [ERROR] No debería haberse podido dar de alta UF duplicada.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaTitularidad duplicada: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaUnidadFuncional duplicada: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I5) AltaExpensa duplicada para mismo consorcio y período
-  ----------------------------------------*/
 BEGIN TRY
-    PRINT 'I5) Intentando crear EXPENSA duplicada (mismo consorcio y período actual)...';
+    PRINT 'I4) Alta UF que excede m2 del consorcio...';
+    EXEC prod.sp_AltaUnidadFuncional
+         @consorcio_id = @idConsorcio,
+         @piso         = '02',
+         @depto        = 'B',
+         @cant_m2      = 999999,   -- enorme para forzar error de m2
+         @coeficiente  = 0;
+    PRINT '  [ERROR] No debería haberse podido dar de alta UF excediendo m2.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaUnidadFuncional m2 excedidos: ' + ERROR_MESSAGE();
+END CATCH;
+
+-------------------------
+-- UNIDAD ACCESORIA
+-------------------------
+BEGIN TRY
+    PRINT 'I5) Alta UA duplicada (mismo tipo para misma UF)...';
+    EXEC prod.sp_AltaUnidadAccesoria
+         @uf_id          = @idUF,
+         @m2_accesorio   = 5,
+         @tipo_accesorio = 'BAULERA';  -- ya tiene baulera
+    PRINT '  [ERROR] No debería haberse podido dar de alta UA duplicada.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaUnidadAccesoria duplicada: ' + ERROR_MESSAGE();
+END CATCH;
+
+BEGIN TRY
+    PRINT 'I6) Alta UA que excede m2 del consorcio...';
+    EXEC prod.sp_AltaUnidadAccesoria
+         @uf_id          = @idUF,
+         @m2_accesorio   = 999999,
+         @tipo_accesorio = 'COCHERA';
+    PRINT '  [ERROR] No debería haberse podido dar de alta UA excediendo m2.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaUnidadAccesoria m2 excedidos: ' + ERROR_MESSAGE();
+END CATCH;
+
+-------------------------
+-- EXPENSA
+-------------------------
+BEGIN TRY
+    PRINT 'I7) Alta Expensa duplicada en mismo período...';
     EXEC prod.sp_AltaExpensa
-        @consorcio_id = @idConsorcio,
-        @total        = 12345,
-        @dias_vto1    = 10,
-        @dias_vto2    = 20;
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+         @consorcio_id  = @idConsorcio,
+         @total         = 30000.00,
+         @fecha_periodo = @hoy,      -- mismo periodo que la válida
+         @dias_vto1     = 10,
+         @dias_vto2     = 20;
+    PRINT '  [ERROR] No debería haberse podido dar de alta expensa duplicada (mismo período).';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaExpensa duplicada: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaExpensa: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I6) AltaProveedor duplicado (mismo nombre)
-  ----------------------------------------*/
+-------------------------
+-- EXTRAORDINARIO
+-------------------------
 BEGIN TRY
-    PRINT 'I6) Intentando crear PROVEEDOR duplicado...';
-    EXEC prod.sp_AltaProveedor
-        @nombre = 'LIMPIEZAS S.A.';
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaProveedor duplicado: ' + ERROR_MESSAGE();
-END CATCH;
-
-/*----------------------------------------
-  I7) AltaProveedorConsorcio duplicado
-  ----------------------------------------*/
-BEGIN TRY
-    PRINT 'I7) Intentando crear PROVEEDOR_CONSORCIO duplicado...';
-    EXEC prod.sp_AltaProveedorConsorcio
-        @proveedor_id = @idProveedor,
-        @consorcio_id = @idConsorcio,
-        @tipo_gasto   = 'LIMPIEZA',
-        @referencia   = 'ABONO MENSUAL';
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaProveedorConsorcio duplicado: ' + ERROR_MESSAGE();
-END CATCH;
-
-/*----------------------------------------
-  I8) AltaOrdinario con importe <= 0
-  ----------------------------------------*/
-BEGIN TRY
-    PRINT 'I8) Intentando crear ORDINARIO con importe <= 0...';
-    EXEC prod.sp_AltaOrdinario
-        @expensa_id           = @idExpensa,
-        @pc_id                = @idPC,
-        @tipo_gasto_ordinario = 'PRUEBA INVALIDA',
-        @nro_factura          = 'LIM-0002',
-        @importe              = 0;
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaOrdinario importe <= 0: ' + ERROR_MESSAGE();
-END CATCH;
-
-/*----------------------------------------
-  I9) AltaExtraordinario con cuota_actual > total_cuotas
-  ----------------------------------------*/
-BEGIN TRY
-    PRINT 'I9) Intentando crear EXTRAORDINARIO con cuota_actual > total_cuotas...';
+    PRINT 'I8) Alta Extraordinario con cuota_actual > total_cuotas...';
     EXEC prod.sp_AltaExtraordinario
-        @expensa_id         = @idExpensa,
-        @categoria          = 'OBRA RARA',
-        @total_cuotas       = 3,
-        @cuota_actual       = 5,    -- inválido
-        @valor_cuota_actual = 1000;
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+         @expensa_id         = @idExpensa,
+         @categoria          = 'PRUEBA INVALIDA',
+         @total_cuotas       = 3,
+         @cuota_actual       = 4,       -- inválido
+         @valor_cuota_actual = 1000.00;
+    PRINT '  [ERROR] No debería haberse podido dar de alta extraordinario con cuotas inválidos.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaExtraordinario cuotas invalidas: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaExtraordinario: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I10) AltaMora con importe negativo
-  ----------------------------------------*/
 BEGIN TRY
-    PRINT 'I10) Intentando crear MORA con importe negativo...';
+    PRINT 'I9) Alta Extraordinario con valor de cuota <= 0...';
+    EXEC prod.sp_AltaExtraordinario
+         @expensa_id         = @idExpensa,
+         @categoria          = 'PRUEBA INVALIDA 2',
+         @total_cuotas       = 3,
+         @cuota_actual       = 1,
+         @valor_cuota_actual = 0.00;    -- inválido
+    PRINT '  [ERROR] No debería haberse podido dar de alta extraordinario con valor <= 0.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaExtraordinario valor <= 0: ' + ERROR_MESSAGE();
+END CATCH;
+
+-------------------------
+-- FACTURA
+-------------------------
+BEGIN TRY
+    PRINT 'I10) Alta Factura con tipo inválido...';
+    EXEC prod.sp_AltaFactura
+         @expensa_id             = @idExpensa,
+         @nro_comprobante        = 'FA-0001-00000002',
+         @tipo_factura           = 'X',      -- inválido
+         @condicion_iva_receptor = 'RI',
+         @cae                    = '23456789012345',
+         @monto_total            = 1000.00,
+         @fecha_emision          = @hoy,
+         @estado                 = 'A',
+         @saldo_anterior         = 0.00;
+    PRINT '  [ERROR] No debería haberse podido dar de alta factura con tipo inválido.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaFactura tipo inválido: ' + ERROR_MESSAGE();
+END CATCH;
+
+BEGIN TRY
+    PRINT 'I11) Alta Factura duplicando nro_comprobante...';
+    EXEC prod.sp_AltaFactura
+         @expensa_id             = @idExpensa,
+         @nro_comprobante        = 'FA-0001-00000001', -- ya usado
+         @tipo_factura           = 'A',
+         @condicion_iva_receptor = 'RI',
+         @cae                    = '34567890123456',
+         @monto_total            = 1000.00,
+         @fecha_emision          = @hoy,
+         @estado                 = 'A',
+         @saldo_anterior         = 0.00;
+    PRINT '  [ERROR] No debería haberse podido dar de alta factura con nro duplicado.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaFactura nro_comprobante duplicado: ' + ERROR_MESSAGE();
+END CATCH;
+
+BEGIN TRY
+    PRINT 'I12) Alta Factura duplicando CAE...';
+    EXEC prod.sp_AltaFactura
+         @expensa_id             = @idExpensa,
+         @nro_comprobante        = 'FA-0001-00000003',
+         @tipo_factura           = 'A',
+         @condicion_iva_receptor = 'RI',
+         @cae                    = '12345678901234', -- mismo CAE que la válida
+         @monto_total            = 1000.00,
+         @fecha_emision          = @hoy,
+         @estado                 = 'A',
+         @saldo_anterior         = 0.00;
+    PRINT '  [ERROR] No debería haberse podido dar de alta factura con CAE duplicado.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaFactura CAE duplicado: ' + ERROR_MESSAGE();
+END CATCH;
+
+-------------------------
+-- TITULARIDAD
+-------------------------
+BEGIN TRY
+    PRINT 'I13) Alta Titularidad duplicada (misma persona/UF/fecha)...';
+    EXEC prod.sp_AltaTitularidad
+         @persona_id       = @idPersona,
+         @uf_id            = @idUF,
+         @tipo_titularidad = 'PROPIETARIO';
+    PRINT '  [ERROR] No debería haberse podido dar de alta titularidad duplicada.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaTitularidad: ' + ERROR_MESSAGE();
+END CATCH;
+
+-------------------------
+-- PAGO
+-------------------------
+BEGIN TRY
+    PRINT 'I14) Alta Pago con importe <= 0...';
+    EXEC prod.sp_AltaPago
+         @expensa_id      = @idExpensa,
+         @fecha           = @hoy,
+         @importe         = 0.00,       -- inválido
+         @nro_transaccion = 'PAGO-0002',
+         @estado          = 'APLICADO',
+         @cbu_cvu_origen  = '0000000000000000000998';
+    PRINT '  [ERROR] No debería haberse podido dar de alta pago con importe <= 0.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaPago importe <= 0: ' + ERROR_MESSAGE();
+END CATCH;
+
+BEGIN TRY
+    PRINT 'I15) Alta Pago con nro_transaccion duplicado...';
+    EXEC prod.sp_AltaPago
+         @expensa_id      = @idExpensa,
+         @fecha           = @hoy,
+         @importe         = 1000.00,
+         @nro_transaccion = 'PAGO-0001',  -- ya usado
+         @estado          = 'APLICADO',
+         @cbu_cvu_origen  = '0000000000000000000997';
+    PRINT '  [ERROR] No debería haberse podido dar de alta pago con nro_transaccion duplicado.';
+END TRY
+BEGIN CATCH
+    PRINT '  [OK] Error esperado sp_AltaPago nro_transaccion duplicado: ' + ERROR_MESSAGE();
+END CATCH;
+
+-------------------------
+-- MORA
+-------------------------
+BEGIN TRY
+    PRINT 'I16) Alta Mora con interés negativo...';
     EXEC prod.sp_AltaMora
-        @expensa_id       = @idExpensa,
-        @fecha_aplicacion = @hoy,
-        @interes          = 0.10,
-        @importe          = -1;
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+         @expensa_id       = @idExpensa,
+         @fecha_aplicacion = @hoy,
+         @interes          = -0.0100,
+         @importe          = 100.00;
+    PRINT '  [ERROR] No debería haberse podido dar de alta mora con interés negativo.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaMora importe negativo: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaMora interés negativo: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I11) AltaUnidadAccesoria con tipo inválido
-  ----------------------------------------*/
 BEGIN TRY
-    PRINT 'I11) Intentando crear UNIDAD ACCESORIA con tipo inválido...';
-    EXEC prod.sp_AltaUnidadAccesoria
-        @uf_id          = @idUF,
-        @m2_accesorio   = 5,
-        @tipo_accesorio = 'DEPOSITO';   -- inválido
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+    PRINT 'I17) Alta Mora con importe negativo...';
+    EXEC prod.sp_AltaMora
+         @expensa_id       = @idExpensa,
+         @fecha_aplicacion = @hoy,
+         @interes          = 0.0100,
+         @importe          = -1.00;
+    PRINT '  [ERROR] No debería haberse podido dar de alta mora con importe negativo.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaUnidadAccesoria tipo invalido: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaMora importe negativo: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I12) AltaUnidadAccesoria duplicada (misma UF y tipo)
-  ----------------------------------------*/
+
+-------------------------
+-- PROVEEDOR
+-------------------------
 BEGIN TRY
-    PRINT 'I12) Intentando crear UNIDAD ACCESORIA duplicada (COCHERA)...';
-    EXEC prod.sp_AltaUnidadAccesoria
-        @uf_id          = @idUF,
-        @m2_accesorio   = 10,
-        @tipo_accesorio = 'COCHERA';
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+    PRINT 'I18) Alta Proveedor duplicado...';
+    EXEC prod.sp_AltaProveedor
+         @nombre = 'Proveedor_Pruebas_Altas';
+    PRINT '  [ERROR] No debería haberse podido dar de alta proveedor duplicado.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaUnidadAccesoria duplicada: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaProveedor duplicado: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I13) AltaFactura con nro_comprobante duplicado
-  ----------------------------------------*/
+-------------------------
+-- PROVEEDOR_CONSORCIO
+-------------------------
 BEGIN TRY
-    PRINT 'I13) Intentando crear FACTURA con nro_comprobante duplicado...';
-    EXEC prod.sp_AltaFactura
-        @expensa_id             = @idExpensa,
-        @nro_comprobante        = 'FAC-0001',      -- ya usado
-        @tipo_factura           = 'B',
-        @condicion_iva_receptor = 'CONSUMID',
-        @cae                    = '99999999999999',
-        @monto_total            = 1000,
-        @fecha_emision          = @hoy,
-        @estado                 = 'A',
-        @saldo_anterior         = 0;
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+    PRINT 'I19) Alta ProveedorConsorcio duplicado...';
+    EXEC prod.sp_AltaProveedorConsorcio
+         @proveedor_id = @idProveedor,
+         @consorcio_id = @idConsorcio,
+         @tipo_gasto   = 'LIMPIEZA',
+         @referencia   = 'Prueba Altas';
+    PRINT '  [ERROR] No debería haberse podido dar de alta ProveedorConsorcio duplicado.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaFactura nro_comprobante duplicado: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaProveedorConsorcio duplicado: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I14) AltaFactura con CAE duplicado
-  ----------------------------------------*/
 BEGIN TRY
-    PRINT 'I14) Intentando crear FACTURA con CAE duplicado...';
-    EXEC prod.sp_AltaFactura
-        @expensa_id             = @idExpensa,
-        @nro_comprobante        = 'FAC-0002',
-        @tipo_factura           = 'B',
-        @condicion_iva_receptor = 'CONSUMID',
-        @cae                    = '12345678901234',   -- mismo CAE
-        @monto_total            = 1000,
-        @fecha_emision          = @hoy,
-        @estado                 = 'A',
-        @saldo_anterior         = 0;
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+    PRINT 'I20) Alta ProveedorConsorcio con proveedor inexistente...';
+    EXEC prod.sp_AltaProveedorConsorcio
+         @proveedor_id = -1,
+         @consorcio_id = @idConsorcio,
+         @tipo_gasto   = 'LIMPIEZA',
+         @referencia   = 'Prueba Invalida';
+    PRINT '  [ERROR] No debería haberse podido dar de alta con proveedor inexistente.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaFactura CAE duplicado: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaProveedorConsorcio proveedor inexistente: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I15) AltaPago con nro_transaccion duplicado
-  ----------------------------------------*/
+-------------------------
+-- ORDINARIO
+-------------------------
 BEGIN TRY
-    PRINT 'I15) Intentando crear PAGO con nro_transaccion duplicado...';
-    EXEC prod.sp_AltaPago
-        @expensa_id      = @idExpensa,
-        @fecha           = @hoy,
-        @importe         = 1000,
-        @nro_transaccion = 'TX-0001',  -- ya usado
-        @estado          = 'ASOCIADO',
-        @cbu_cvu_origen  = '1111222233334444555566';
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+    PRINT 'I21) Alta Ordinario con importe <= 0...';
+    EXEC prod.sp_AltaOrdinario
+         @expensa_id           = @idExpensa,
+         @pc_id                = @idPC,
+         @tipo_gasto_ordinario = 'PRUEBA INVALIDA',
+         @nro_factura          = 'OR-002',
+         @importe              = 0.00;
+    PRINT '  [ERROR] No debería haberse podido dar de alta ordinario con importe <= 0.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaPago nro_transaccion duplicado: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaOrdinario importe <= 0: ' + ERROR_MESSAGE();
 END CATCH;
 
-/*----------------------------------------
-  I16) AltaPago con importe <= 0
-  ----------------------------------------*/
 BEGIN TRY
-    PRINT 'I16) Intentando crear PAGO con importe <= 0...';
-    EXEC prod.sp_AltaPago
-        @expensa_id      = @idExpensa,
-        @fecha           = @hoy,
-        @importe         = 0,
-        @nro_transaccion = 'TX-0002',
-        @estado          = 'ASOCIADO',
-        @cbu_cvu_origen  = '1111222233334444555566';
-    PRINT '  [ERROR] Esto NO debería haberse insertado.';
+    PRINT 'I22) Alta Ordinario con pc_id inexistente...';
+    EXEC prod.sp_AltaOrdinario
+         @expensa_id           = @idExpensa,
+         @pc_id                = -1,
+         @tipo_gasto_ordinario = 'PRUEBA INVALIDA',
+         @nro_factura          = 'OR-003',
+         @importe              = 1000.00;
+    PRINT '  [ERROR] No debería haberse podido dar de alta ordinario con pc_id inexistente.';
 END TRY
 BEGIN CATCH
-    PRINT '  [OK] Error esperado AltaPago importe <= 0: ' + ERROR_MESSAGE();
+    PRINT '  [OK] Error esperado sp_AltaOrdinario pc_id inexistente: ' + ERROR_MESSAGE();
 END CATCH;
 
-PRINT '=== FIN LOTE DE ALTAS (CON INVALIDAS) ===';
+PRINT '=== FIN LOTE DE PRUEBAS - ALTAS ===';
 GO

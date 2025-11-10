@@ -1,4 +1,3 @@
-
 USE COM2900G05;
 GO
 IF OBJECT_ID('prod.sp_ImportarConsorcios','P') IS NOT NULL DROP PROCEDURE prod.sp_ImportarConsorcios;

@@ -22,21 +22,93 @@ DECLARE
 SET @hoy = CAST(GETDATE() AS DATE);
 
 /*=========================================
-  OBTENER LOS ÚLTIMOS IDs INSERTADOS
+  OBTENER LOS IDs DEL LOTE DE ALTAS
   =========================================*/
-SELECT @idConsorcio    = MAX(consorcio_id)    FROM prod.Consorcio;
-SELECT @idUF           = MAX(uf_id)           FROM prod.UnidadFuncional;
-SELECT @idPersona      = MAX(persona_id)      FROM prod.Persona;
-SELECT @idTitularidad  = MAX(titular_unidad_id) FROM prod.Titularidad;
-SELECT @idExpensa      = MAX(expensa_id)      FROM prod.Expensa;
-SELECT @idProveedor    = MAX(proveedor_id)    FROM prod.Proveedor;
-SELECT @idPC           = MAX(pc_id)           FROM prod.ProveedorConsorcio;
-SELECT @idOrdinario    = MAX(gasto_ord_id)    FROM prod.Ordinarios;
-SELECT @idExtra        = MAX(gasto_id_extra)  FROM prod.Extraordinarios;
-SELECT @idMora         = MAX(mora_id)         FROM prod.Mora;
-SELECT @idUA           = MAX(ua_id)           FROM prod.UnidadAccesoria;
-SELECT @idFactura      = MAX(factura_id)      FROM prod.Factura;
-SELECT @idPago         = MAX(pago_id)         FROM prod.Pago;
+
+-- Consorcio del lote de ALTAS
+SELECT @idConsorcio = MAX(consorcio_id)
+FROM prod.Consorcio
+WHERE nombre    = 'Consorcio_Pruebas_Altas'
+  AND direccion = 'Calle Altas 123'
+  AND borrado   = 0;
+
+-- Persona del lote de ALTAS (CBU fijo)
+SELECT @idPersona = MAX(persona_id)
+FROM prod.Persona
+WHERE cbu_cvu = '0000000000000000000123'
+  AND borrado = 0;
+
+-- UF del lote (01 A en ese consorcio)
+SELECT @idUF = MAX(uf_id)
+FROM prod.UnidadFuncional
+WHERE consorcio_id = @idConsorcio
+  AND piso         = '01'
+  AND depto        = 'A'
+  AND borrado      = 0;
+
+-- Titularidad de esa persona y UF
+SELECT @idTitularidad = MAX(titular_unidad_id)
+FROM prod.Titularidad
+WHERE persona_id = @idPersona
+  AND uf_id      = @idUF;
+
+-- Expensa del consorcio de pruebas (última activa)
+SELECT @idExpensa = MAX(expensa_id)
+FROM prod.Expensa
+WHERE consorcio_id = @idConsorcio
+  AND borrado      = 0;
+
+-- Proveedor del lote de ALTAS
+SELECT @idProveedor = MAX(proveedor_id)
+FROM prod.Proveedor
+WHERE nombre  = 'Proveedor_Pruebas_Altas'
+  AND borrado = 0;
+
+-- ProveedorConsorcio del lote (LIMPIEZA / 'Prueba Altas')
+SELECT @idPC = MAX(pc_id)
+FROM prod.ProveedorConsorcio
+WHERE proveedor_id = @idProveedor
+  AND consorcio_id = @idConsorcio
+  AND tipo_gasto   = 'LIMPIEZA'
+  AND ISNULL(referencia,'') = 'Prueba Altas'
+  AND borrado      = 0;
+
+-- Ordinario del lote (LIMPIEZA MENSUAL)
+SELECT @idOrdinario = MAX(gasto_ord_id)
+FROM prod.Ordinarios
+WHERE expensa_id           = @idExpensa
+  AND tipo_gasto_ordinario = 'LIMPIEZA MENSUAL'
+  AND borrado              = 0;
+
+-- Extraordinario del lote (PINTURA FACHADA)
+SELECT @idExtra = MAX(gasto_id_extra)
+FROM prod.Extraordinarios
+WHERE expensa_id = @idExpensa
+  AND categoria  = 'PINTURA FACHADA'
+  AND borrado    = 0;
+
+-- Mora del lote
+SELECT @idMora = MAX(mora_id)
+FROM prod.Mora
+WHERE expensa_id = @idExpensa
+  AND borrado    = 0;
+
+-- Alguna UA de la UF (solo para mostrar; para bajas vamos a bajar TODAS)
+SELECT @idUA = MAX(ua_id)
+FROM prod.UnidadAccesoria
+WHERE uf_id   = @idUF
+  AND borrado = 0;
+
+-- Factura del lote (FA-0001-00000001)
+SELECT @idFactura = MAX(factura_id)
+FROM prod.Factura
+WHERE nro_comprobante = 'FA-0001-00000001';
+
+-- Pago del lote (PAGO-0001)
+SELECT @idPago = MAX(pago_id)
+FROM prod.Pago
+WHERE nro_transaccion = 'PAGO-0001'
+  AND borrado = 0;
 
 PRINT '=== IDs A USAR PARA BAJAS ===';
 SELECT 
@@ -101,7 +173,7 @@ WHERE mora_id = @idMora;
 
 SELECT ua_id, uf_id, tipo_accesorio, borrado
 FROM prod.UnidadAccesoria
-WHERE ua_id = @idUA;
+WHERE uf_id = @idUF;
 
 SELECT factura_id, expensa_id, borrado
 FROM prod.Factura
@@ -204,11 +276,23 @@ BEGIN
     EXEC prod.sp_BajaOrdinario @gasto_ord_id = @idOrdinario;
 END
 
--- 6) Baja Unidad Accesoria
-IF @idUA IS NOT NULL
+-- 6) Baja TODAS las Unidades Accesorias de la UF
+DECLARE @uaActual INT;
+
+SELECT @uaActual = MIN(ua_id)
+FROM prod.UnidadAccesoria
+WHERE uf_id   = @idUF
+  AND borrado = 0;
+
+WHILE @uaActual IS NOT NULL
 BEGIN
-    PRINT 'Baja UNIDAD ACCESORIA ' + CAST(@idUA AS VARCHAR(10));
-    EXEC prod.sp_BajaUnidadAccesoria @ua_id = @idUA;
+    PRINT 'Baja UNIDAD ACCESORIA ' + CAST(@uaActual AS VARCHAR(10));
+    EXEC prod.sp_BajaUnidadAccesoria @ua_id = @uaActual;
+
+    SELECT @uaActual = MIN(ua_id)
+    FROM prod.UnidadAccesoria
+    WHERE uf_id   = @idUF
+      AND borrado = 0;
 END
 
 -- 7) Cierre Titularidad
@@ -419,7 +503,7 @@ WHERE mora_id = @idMora;
 
 SELECT ua_id, uf_id, borrado
 FROM prod.UnidadAccesoria
-WHERE ua_id = @idUA;
+WHERE uf_id = @idUF;
 
 SELECT factura_id, expensa_id, borrado
 FROM prod.Factura

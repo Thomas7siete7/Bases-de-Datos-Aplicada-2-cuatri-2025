@@ -132,19 +132,35 @@ CREATE PROCEDURE prod.sp_AltaUnidadFuncional
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
-    DECLARE @id INT;
+    DECLARE
+        @id                INT,
+        @uf_id             INT,
+        @cant_m2_total_con INT,
+        @total_m2_uf_ua    INT;
 
     IF NOT EXISTS (
-        SELECT 1 FROM prod.Consorcio
-        WHERE consorcio_id = @consorcio_id AND borrado = 0
+        SELECT 1
+        FROM prod.Consorcio
+        WHERE consorcio_id = @consorcio_id
+          AND borrado      = 0
     )
     BEGIN
         RAISERROR('Consorcio inexistente o dado de baja.',16,1);
         RETURN;
     END;
 
-    -- Activa ? error
+    SELECT @cant_m2_total_con = cant_m2_total
+    FROM prod.Consorcio
+    WHERE consorcio_id = @consorcio_id;
+
+    IF @cant_m2_total_con IS NULL OR @cant_m2_total_con <= 0
+    BEGIN
+        RAISERROR('El consorcio no tiene m2 totales válidos.',16,1);
+        RETURN;
+    END;
+
     IF EXISTS (
         SELECT 1
         FROM prod.UnidadFuncional
@@ -158,7 +174,6 @@ BEGIN
         RETURN;
     END;
 
-    -- Borrada ? reactivar
     SELECT @id = uf_id
     FROM prod.UnidadFuncional
     WHERE consorcio_id = @consorcio_id
@@ -166,22 +181,89 @@ BEGIN
       AND depto        = @depto
       AND borrado      = 1;
 
+    BEGIN TRAN;
+
     IF @id IS NOT NULL
     BEGIN
         UPDATE prod.UnidadFuncional
            SET cant_m2     = @cant_m2,
-               coeficiente = @coeficiente,
                borrado     = 0
          WHERE uf_id       = @id;
 
-        SELECT @id AS uf_id;
+        SET @uf_id = @id;
+    END
+    ELSE
+    BEGIN
+        INSERT INTO prod.UnidadFuncional(consorcio_id, piso, depto, cant_m2, coeficiente, borrado)
+        VALUES(@consorcio_id, @piso, @depto, @cant_m2, 0, 0);
+
+        SET @uf_id = SCOPE_IDENTITY();
+    END;
+
+    -- 5) m² totales UF+UA, sin warnings
+    ;WITH UFData AS (
+        SELECT
+            uf.uf_id,
+            ISNULL(uf.cant_m2,0)
+            + ISNULL(
+                SUM(
+                    CASE 
+                        WHEN ua.borrado = 0 THEN ISNULL(ua.m2_accesorio,0)
+                        ELSE 0
+                    END
+                ),0
+              ) AS m2_total_uf
+        FROM prod.UnidadFuncional uf
+        LEFT JOIN prod.UnidadAccesoria ua
+               ON ua.uf_id = uf.uf_id
+        WHERE uf.consorcio_id = @consorcio_id
+          AND uf.borrado      = 0
+        GROUP BY uf.uf_id, uf.cant_m2
+    )
+    SELECT @total_m2_uf_ua = ISNULL(SUM(ISNULL(m2_total_uf,0)),0)
+    FROM UFData;
+
+    IF @total_m2_uf_ua > @cant_m2_total_con
+    BEGIN
+        ROLLBACK TRAN;
+        RAISERROR('La suma de m2 de UF y unidades accesorias supera los m2 del consorcio.',16,1);
         RETURN;
     END;
 
-    INSERT INTO prod.UnidadFuncional(consorcio_id, piso, depto, cant_m2, coeficiente, borrado)
-    VALUES(@consorcio_id, @piso, @depto, @cant_m2, @coeficiente, 0);
+    -- 6) Recalcular coeficientes
+    ;WITH UFData AS (
+        SELECT
+            uf.uf_id,
+            ISNULL(uf.cant_m2,0)
+            + ISNULL(
+                SUM(
+                    CASE 
+                        WHEN ua.borrado = 0 THEN ISNULL(ua.m2_accesorio,0)
+                        ELSE 0
+                    END
+                ),0
+              ) AS m2_total_uf
+        FROM prod.UnidadFuncional uf
+        LEFT JOIN prod.UnidadAccesoria ua
+               ON ua.uf_id = uf.uf_id
+        WHERE uf.consorcio_id = @consorcio_id
+          AND uf.borrado      = 0
+        GROUP BY uf.uf_id, uf.cant_m2
+    )
+    UPDATE uf
+       SET coeficiente = ROUND(
+                           100.0 * ISNULL(ufd.m2_total_uf,0)
+                           / NULLIF(@cant_m2_total_con,0)
+                         , 2)
+    FROM prod.UnidadFuncional uf
+    JOIN UFData ufd
+      ON uf.uf_id = ufd.uf_id
+    WHERE uf.consorcio_id = @consorcio_id
+      AND uf.borrado      = 0;
 
-    SELECT SCOPE_IDENTITY() AS uf_id;
+    COMMIT TRAN;
+
+    SELECT @uf_id AS uf_id;
 END
 GO
 
@@ -192,54 +274,65 @@ IF OBJECT_ID('prod.sp_AltaUnidadAccesoria','P') IS NOT NULL
     DROP PROCEDURE prod.sp_AltaUnidadAccesoria;
 GO
 CREATE PROCEDURE prod.sp_AltaUnidadAccesoria
-    @uf_id         INT,
-    @m2_accesorio  INT,
-    @tipo_accesorio VARCHAR(20)   -- 'BAULERA' o 'COCHERA'
+    @uf_id          INT,
+    @m2_accesorio   INT,
+    @tipo_accesorio VARCHAR(20)
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
-    DECLARE @id INT;
+    DECLARE
+        @id                INT,
+        @consorcio_id      INT,
+        @cant_m2_total_con INT,
+        @total_m2_uf_ua    INT,
+        @ua_id             INT;
 
     IF NOT EXISTS (
-        SELECT 1 FROM prod.UnidadFuncional
-        WHERE uf_id = @uf_id AND borrado = 0
+        SELECT 1
+        FROM prod.UnidadFuncional
+        WHERE uf_id  = @uf_id
+          AND borrado = 0
     )
     BEGIN
         RAISERROR('Unidad funcional inexistente o dada de baja.',16,1);
         RETURN;
     END;
 
-    IF @m2_accesorio <= 0
+    SELECT
+        @consorcio_id      = uf.consorcio_id,
+        @cant_m2_total_con = c.cant_m2_total
+    FROM prod.UnidadFuncional uf
+    JOIN prod.Consorcio c
+      ON c.consorcio_id = uf.consorcio_id
+    WHERE uf.uf_id = @uf_id;
+
+    IF @cant_m2_total_con IS NULL OR @cant_m2_total_con <= 0
     BEGIN
-        RAISERROR('Los m2 del accesorio deben ser > 0.',16,1);
+        RAISERROR('El consorcio asociado a la UF no tiene m2 totales válidos.',16,1);
         RETURN;
     END;
 
-    IF @tipo_accesorio NOT IN ('BAULERA','COCHERA')
-    BEGIN
-        RAISERROR('Tipo de accesorio inválido. Debe ser BAULERA o COCHERA.',16,1);
-        RETURN;
-    END;
-
-    -- Activa para mismo tipo ? error (no 2 cocheras para misma UF)
     IF EXISTS (
-        SELECT 1 FROM prod.UnidadAccesoria
-        WHERE uf_id = @uf_id
+        SELECT 1
+        FROM prod.UnidadAccesoria
+        WHERE uf_id          = @uf_id
           AND tipo_accesorio = @tipo_accesorio
-          AND borrado = 0
+          AND borrado        = 0
     )
     BEGIN
         RAISERROR('Ya existe una unidad accesoria de ese tipo para la UF.',16,1);
         RETURN;
     END;
 
-    -- Reactivar si estaba borrada
     SELECT @id = ua_id
     FROM prod.UnidadAccesoria
-    WHERE uf_id = @uf_id
+    WHERE uf_id          = @uf_id
       AND tipo_accesorio = @tipo_accesorio
-      AND borrado = 1;
+      AND borrado        = 1;
+
+    BEGIN TRAN;
 
     IF @id IS NOT NULL
     BEGIN
@@ -248,14 +341,80 @@ BEGIN
                borrado      = 0
          WHERE ua_id        = @id;
 
-        SELECT @id AS ua_id;
+        SET @ua_id = @id;
+    END
+    ELSE
+    BEGIN
+        INSERT INTO prod.UnidadAccesoria(uf_id, m2_accesorio, tipo_accesorio, borrado)
+        VALUES(@uf_id, @m2_accesorio, @tipo_accesorio, 0);
+
+        SET @ua_id = SCOPE_IDENTITY();
+    END;
+
+    -- 5) m² totales UF+UA del consorcio
+    ;WITH UFData AS (
+        SELECT
+            uf.uf_id,
+            ISNULL(uf.cant_m2,0)
+            + ISNULL(
+                SUM(
+                    CASE 
+                        WHEN ua.borrado = 0 THEN ISNULL(ua.m2_accesorio,0)
+                        ELSE 0
+                    END
+                ),0
+              ) AS m2_total_uf
+        FROM prod.UnidadFuncional uf
+        LEFT JOIN prod.UnidadAccesoria ua
+               ON ua.uf_id = uf.uf_id
+        WHERE uf.consorcio_id = @consorcio_id
+          AND uf.borrado      = 0
+        GROUP BY uf.uf_id, uf.cant_m2
+    )
+    SELECT @total_m2_uf_ua = ISNULL(SUM(ISNULL(m2_total_uf,0)),0)
+    FROM UFData;
+
+    IF @total_m2_uf_ua > @cant_m2_total_con
+    BEGIN
+        ROLLBACK TRAN;
+        RAISERROR('La suma de m2 de UF y unidades accesorias supera los m2 del consorcio.',16,1);
         RETURN;
     END;
 
-    INSERT INTO prod.UnidadAccesoria(uf_id, m2_accesorio, tipo_accesorio, borrado)
-    VALUES(@uf_id, @m2_accesorio, @tipo_accesorio, 0);
+    -- 6) Recalcular coeficientes
+    ;WITH UFData AS (
+        SELECT
+            uf.uf_id,
+            ISNULL(uf.cant_m2,0)
+            + ISNULL(
+                SUM(
+                    CASE 
+                        WHEN ua.borrado = 0 THEN ISNULL(ua.m2_accesorio,0)
+                        ELSE 0
+                    END
+                ),0
+              ) AS m2_total_uf
+        FROM prod.UnidadFuncional uf
+        LEFT JOIN prod.UnidadAccesoria ua
+               ON ua.uf_id = uf.uf_id
+        WHERE uf.consorcio_id = @consorcio_id
+          AND uf.borrado      = 0
+        GROUP BY uf.uf_id, uf.cant_m2
+    )
+    UPDATE uf
+       SET coeficiente = ROUND(
+                           100.0 * ISNULL(ufd.m2_total_uf,0)
+                           / NULLIF(@cant_m2_total_con,0)
+                         , 2)
+    FROM prod.UnidadFuncional uf
+    JOIN UFData ufd
+      ON uf.uf_id = ufd.uf_id
+    WHERE uf.consorcio_id = @consorcio_id
+      AND uf.borrado      = 0;
 
-    SELECT SCOPE_IDENTITY() AS ua_id;
+    COMMIT TRAN;
+
+    SELECT @ua_id AS ua_id;
 END
 GO
 
@@ -268,7 +427,8 @@ GO
 CREATE PROCEDURE prod.sp_AltaExpensa
     @consorcio_id INT,
     @total        DECIMAL(12,2),
-    @dias_vto1    INT = 10,    -- días desde el 1 del mes
+    @fecha_periodo DATE,     -- NUEVO: permite especificar la fecha base del período
+    @dias_vto1    INT = 10,         -- días desde el inicio del período
     @dias_vto2    INT = 20
 AS
 BEGIN
@@ -276,16 +436,15 @@ BEGIN
 
     DECLARE 
         @id       INT,
-        @hoy      DATE,
         @periodo  DATE,
         @venc1    DATE,
         @venc2    DATE;
 
-    SET @hoy = CAST(GETDATE() AS DATE);
-    SET @periodo = DATEFROMPARTS(YEAR(@hoy), MONTH(@hoy), 1);
-    SET @venc1   = DATEADD(DAY, @dias_vto1, @periodo);
-    SET @venc2   = DATEADD(DAY, @dias_vto2, @periodo);
+    -- Calcular vencimientos relativos a ese período
+    SET @venc1 = DATEADD(DAY, @dias_vto1, @fecha_periodo);
+    SET @venc2 = DATEADD(DAY, @dias_vto2, @fecha_periodo);
 
+    -- Validaciones
     IF NOT EXISTS (
         SELECT 1 FROM prod.Consorcio
         WHERE consorcio_id = @consorcio_id AND borrado = 0
@@ -309,11 +468,11 @@ BEGIN
           AND borrado      = 0
     )
     BEGIN
-        RAISERROR('Ya existe una expensa activa para ese consorcio en el período actual.',16,1);
+        RAISERROR('Ya existe una expensa activa para ese consorcio en el período especificado.',16,1);
         RETURN;
     END;
 
-    -- Si hay una expensa borrada lógica para ese período ? la reactivamos
+    -- Si hay una expensa borrada lógica para ese período ? reactivar
     SELECT @id = expensa_id
     FROM prod.Expensa
     WHERE consorcio_id = @consorcio_id
@@ -323,7 +482,8 @@ BEGIN
     IF @id IS NOT NULL
     BEGIN
         UPDATE prod.Expensa
-           SET vencimiento1 = @venc1,
+           SET periodo      = @fecha_periodo,
+               vencimiento1 = @venc1,
                vencimiento2 = @venc2,
                total        = @total,
                borrado      = 0
@@ -335,7 +495,7 @@ BEGIN
 
     -- Nueva expensa
     INSERT INTO prod.Expensa(consorcio_id, periodo, vencimiento1, vencimiento2, total, borrado)
-    VALUES(@consorcio_id, @periodo, @venc1, @venc2, @total, 0);
+    VALUES(@consorcio_id, @fecha_periodo, @venc1, @venc2, @total, 0);
 
     SELECT SCOPE_IDENTITY() AS expensa_id;
 END
