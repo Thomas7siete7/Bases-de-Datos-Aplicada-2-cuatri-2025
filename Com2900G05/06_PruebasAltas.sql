@@ -20,17 +20,20 @@ DECLARE
     @idUA_Cochera      INT,
     @idFactura         INT,
     @idPago            INT,
-    @hoy               DATE;
+    @hoy               DATE,
+    @anioActual        INT,
+    @mesActual         INT;
 
-SET @hoy = CAST(GETDATE() AS DATE);
+SET @hoy        = CAST(GETDATE() AS DATE);
+SET @anioActual = YEAR(@hoy);
+SET @mesActual  = MONTH(@hoy);
 
 PRINT '=== PARTE 1: ALTAS VALIDAS EN ORDEN CORRECTO ===';
 
 -------------------------------------------
 -- 1) Alta CONSORCIO válido
 -------------------------------------------
-DECLARE 
-    @idOut INT;
+DECLARE @idOut INT;
 
 PRINT 'A1) Alta Consorcio válido...';
 
@@ -138,9 +141,9 @@ EXEC prod.sp_AltaUnidadAccesoria
 
 SELECT @idUA_Baulera = MAX(ua_id)
 FROM prod.UnidadAccesoria
-WHERE uf_id         = @idUF
+WHERE uf_id          = @idUF
   AND tipo_accesorio = 'BAULERA'
-  AND borrado       = 0;
+  AND borrado        = 0;
 
 PRINT '   -> ua_id (baulera) = ' + CAST(@idUA_Baulera AS VARCHAR(10));
 
@@ -156,27 +159,29 @@ EXEC prod.sp_AltaUnidadAccesoria
 
 SELECT @idUA_Cochera = MAX(ua_id)
 FROM prod.UnidadAccesoria
-WHERE uf_id         = @idUF
+WHERE uf_id          = @idUF
   AND tipo_accesorio = 'COCHERA'
-  AND borrado       = 0;
+  AND borrado        = 0;
 
 PRINT '   -> ua_id (cochera) = ' + CAST(@idUA_Cochera AS VARCHAR(10));
 
 -------------------------------------------
--- 8) Alta EXPENSA válida (con @fecha_periodo)
+-- 8) Alta EXPENSA válida (NUEVA FIRMA: anio/mes)
 -------------------------------------------
 PRINT 'A8) Alta Expensa válida...';
 
 EXEC prod.sp_AltaExpensa
-     @consorcio_id  = @idConsorcio,
-     @total         = 50000.00,
-     @fecha_periodo = @hoy,    -- NUEVO: se toma el mes de @hoy
-     @dias_vto1     = 10,
-     @dias_vto2     = 20;
+     @consorcio_id = @idConsorcio,
+     @anio         = @anioActual,
+     @mes          = @mesActual,
+     @total        = 50000.00,
+     @dias_vto1    = 10,
+     @dias_vto2    = 20;
 
 SELECT @idExpensa = MAX(expensa_id)
 FROM prod.Expensa
 WHERE consorcio_id = @idConsorcio
+  AND periodo      = DATEFROMPARTS(@anioActual, @mesActual, 5)
   AND borrado      = 0;
 
 PRINT '   -> expensa_id = ' + CAST(@idExpensa AS VARCHAR(10));
@@ -450,16 +455,17 @@ BEGIN CATCH
 END CATCH;
 
 -------------------------
--- EXPENSA
+-- EXPENSA (NUEVA FIRMA)
 -------------------------
 BEGIN TRY
     PRINT 'I7) Alta Expensa duplicada en mismo período...';
     EXEC prod.sp_AltaExpensa
-         @consorcio_id  = @idConsorcio,
-         @total         = 30000.00,
-         @fecha_periodo = @hoy,      -- mismo periodo que la válida
-         @dias_vto1     = 10,
-         @dias_vto2     = 20;
+         @consorcio_id = @idConsorcio,
+         @anio         = @anioActual,
+         @mes          = @mesActual,   -- mismo período que la válida
+         @total        = 30000.00,
+         @dias_vto1    = 10,
+         @dias_vto2    = 20;
     PRINT '  [ERROR] No debería haberse podido dar de alta expensa duplicada (mismo período).';
 END TRY
 BEGIN CATCH
@@ -630,7 +636,6 @@ END TRY
 BEGIN CATCH
     PRINT '  [OK] Error esperado sp_AltaMora importe negativo: ' + ERROR_MESSAGE();
 END CATCH;
-
 
 -------------------------
 -- PROVEEDOR

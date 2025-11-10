@@ -53,8 +53,6 @@ BEGIN
     -- No existe ? insert
     INSERT INTO prod.Consorcio(nombre, direccion, cant_unidades, cant_m2_total, borrado)
     VALUES(@nombre, @direccion, @cant_unidades, @cant_m2_total, 0);
-
-    SELECT SCOPE_IDENTITY() AS consorcio_id;
 END
 GO
 
@@ -112,8 +110,6 @@ BEGIN
     -- No existe ? insert
     INSERT INTO prod.Persona(nombre, apellido, email, dni, telefono, cbu_cvu, inquilino, borrado)
     VALUES(@nombre, @apellido, @email, @dni, @telefono, @cbu_cvu, @inquilino, 0);
-
-    SELECT SCOPE_IDENTITY() AS persona_id;
 END
 GO
 
@@ -262,8 +258,6 @@ BEGIN
       AND uf.borrado      = 0;
 
     COMMIT TRAN;
-
-    SELECT @uf_id AS uf_id;
 END
 GO
 
@@ -414,65 +408,96 @@ BEGIN
 
     COMMIT TRAN;
 
-    SELECT @ua_id AS ua_id;
 END
 GO
 
 /* =========================================
    ALTA EXPENSA
    ========================================= */
+
 IF OBJECT_ID('prod.sp_AltaExpensa','P') IS NOT NULL
     DROP PROCEDURE prod.sp_AltaExpensa;
 GO
+
 CREATE PROCEDURE prod.sp_AltaExpensa
     @consorcio_id INT,
-    @total        DECIMAL(12,2),
-    @fecha_periodo DATE,     -- NUEVO: permite especificar la fecha base del período
-    @dias_vto1    INT = 10,         -- días desde el inicio del período
+    @anio         INT,
+    @mes          INT,
+    @total        DECIMAL(12,2) = NULL,  -- si viene NULL, se guarda 0
+    @dias_vto1    INT = 10,              -- días desde el inicio del período
     @dias_vto2    INT = 20
 AS
 BEGIN
     SET NOCOUNT ON;
 
     DECLARE 
-        @id       INT,
-        @periodo  DATE,
-        @venc1    DATE,
-        @venc2    DATE;
+        @id      INT,
+        @periodo DATE,
+        @venc1   DATE,
+        @venc2   DATE,
+        @total_final DECIMAL(12,2);
 
-    -- Calcular vencimientos relativos a ese período
-    SET @venc1 = DATEADD(DAY, @dias_vto1, @fecha_periodo);
-    SET @venc2 = DATEADD(DAY, @dias_vto2, @fecha_periodo);
+    ------------------------------------------------------------------
+    -- 1) Calcular período y vencimientos
+    ------------------------------------------------------------------
+    -- Período = quinto dia del mes
+    SET @periodo = DATEFROMPARTS(@anio, @mes, 5);
 
-    -- Validaciones
+    -- Vencimientos relativos al período
+    SET @venc1 = DATEADD(DAY, @dias_vto1, @periodo);
+    SET @venc2 = DATEADD(DAY, @dias_vto2, @periodo);
+
+    -- Si @total es NULL, se guarda 0 (luego se recalcula con otro SP)
+    SET @total_final = ISNULL(@total, 0);
+
+    ------------------------------------------------------------------
+    -- 2) Validaciones básicas
+    ------------------------------------------------------------------
+    -- Consorcio existente y activo
     IF NOT EXISTS (
-        SELECT 1 FROM prod.Consorcio
-        WHERE consorcio_id = @consorcio_id AND borrado = 0
+        SELECT 1 
+        FROM prod.Consorcio
+        WHERE consorcio_id = @consorcio_id
+          AND borrado      = 0
     )
     BEGIN
         RAISERROR('Consorcio inexistente o dado de baja.',16,1);
         RETURN;
     END;
 
-    IF @total < 0
+    -- Total no negativo
+    IF @total_final < 0
     BEGIN
         RAISERROR('El total de la expensa no puede ser negativo.',16,1);
         RETURN;
     END;
 
-    -- Ya existe activa para ese consorcio+periodo ? error
+    -- Fechas coherentes con el CHECK de la tabla:
+    -- CK_Expensa_Vtos: vencimiento2 >= vencimiento1 AND vencimiento1 >= periodo
+    IF NOT (@venc2 >= @venc1 AND @venc1 >= @periodo)
+    BEGIN
+        RAISERROR('Las fechas de vencimiento no son coherentes con el período.',16,1);
+        RETURN;
+    END;
+
+    ------------------------------------------------------------------
+    -- 3) Ya existe activa para ese consorcio+periodo ? error
+    ------------------------------------------------------------------
     IF EXISTS (
-        SELECT 1 FROM prod.Expensa
+        SELECT 1 
+        FROM prod.Expensa
         WHERE consorcio_id = @consorcio_id
           AND periodo      = @periodo
           AND borrado      = 0
     )
     BEGIN
-        RAISERROR('Ya existe una expensa activa para ese consorcio en el período especificado.',16,1);
+        RAISERROR('Ya existe una expensa activa para ese consorcio y período.',16,1);
         RETURN;
     END;
 
-    -- Si hay una expensa borrada lógica para ese período ? reactivar
+    ------------------------------------------------------------------
+    -- 4) Si hay una expensa borrada lógica para ese período ? reactivar
+    ------------------------------------------------------------------
     SELECT @id = expensa_id
     FROM prod.Expensa
     WHERE consorcio_id = @consorcio_id
@@ -482,10 +507,10 @@ BEGIN
     IF @id IS NOT NULL
     BEGIN
         UPDATE prod.Expensa
-           SET periodo      = @fecha_periodo,
+           SET periodo      = @periodo,
                vencimiento1 = @venc1,
                vencimiento2 = @venc2,
-               total        = @total,
+               total        = @total_final,
                borrado      = 0
          WHERE expensa_id   = @id;
 
@@ -493,11 +518,11 @@ BEGIN
         RETURN;
     END;
 
-    -- Nueva expensa
+    ------------------------------------------------------------------
+    -- 5) Nueva expensa
+    ------------------------------------------------------------------
     INSERT INTO prod.Expensa(consorcio_id, periodo, vencimiento1, vencimiento2, total, borrado)
-    VALUES(@consorcio_id, @fecha_periodo, @venc1, @venc2, @total, 0);
-
-    SELECT SCOPE_IDENTITY() AS expensa_id;
+    VALUES(@consorcio_id, @periodo, @venc1, @venc2, @total_final, 0);
 END
 GO
 
@@ -546,8 +571,6 @@ BEGIN
     VALUES(
         @expensa_id, @categoria, @total_cuotas, @cuota_actual, @valor_cuota_actual, 0
     );
-
-    SELECT SCOPE_IDENTITY() AS gasto_id_extra;
 END
 GO
 
@@ -636,8 +659,6 @@ BEGIN
         @saldo_anterior,
         0
     );
-
-    SELECT SCOPE_IDENTITY() AS factura_id;
 END
 GO
 
@@ -650,15 +671,11 @@ GO
 CREATE PROCEDURE prod.sp_AltaTitularidad
     @persona_id       INT,
     @uf_id            INT,
+    @fecha_desde      DATE,
     @tipo_titularidad VARCHAR(15)   -- 'PROPIETARIO'/'INQUILINO'
 AS
 BEGIN
     SET NOCOUNT ON;
-
-    DECLARE @fecha_desde DATE
-
-    -- Fecha por defecto = hoy
-    SET @fecha_desde = CAST(GETDATE() AS DATE);
 
     IF NOT EXISTS (
         SELECT 1 FROM prod.Persona
@@ -698,11 +715,8 @@ BEGIN
 
     INSERT INTO prod.Titularidad(persona_id, uf_id, tipo_titularidad, fecha_desde, fecha_hasta)
     VALUES(@persona_id, @uf_id, @tipo_titularidad, @fecha_desde, NULL);
-
-    SELECT SCOPE_IDENTITY() AS titular_unidad_id;
 END
 GO
-
 
 /* =========================================
    ALTA PAGO (reactiva si misma transacción borrada)
@@ -772,8 +786,6 @@ BEGIN
 
     INSERT INTO prod.Pago(expensa_id, fecha, importe, nro_transaccion, estado, cbu_cvu_origen, borrado)
     VALUES(@expensa_id, @fecha, @importe, @nro_transaccion, @estado, @cbu_cvu_origen, 0);
-
-    SELECT SCOPE_IDENTITY() AS pago_id;
 END
 GO
 
@@ -817,8 +829,6 @@ BEGIN
 
     INSERT INTO prod.Mora(expensa_id, fecha_aplicacion, interes, importe, borrado)
     VALUES(@expensa_id, @fecha_aplicacion, @interes, @importe, 0);
-
-    SELECT SCOPE_IDENTITY() AS mora_id;
 END
 GO
 
@@ -866,8 +876,6 @@ BEGIN
 
     INSERT INTO prod.Proveedor(nombre, borrado)
     VALUES(@nombre, 0);
-
-    SELECT SCOPE_IDENTITY() AS proveedor_id;
 END
 GO
 
@@ -949,7 +957,6 @@ BEGIN
         @proveedor_id, @consorcio_id, @tipo_gasto, @referencia, 0
     );
 
-    SELECT SCOPE_IDENTITY() AS pc_id;
 END
 GO
 
@@ -1001,7 +1008,5 @@ BEGIN
     VALUES(
         @expensa_id, @pc_id, @tipo_gasto_ordinario, @nro_factura, @importe, 0
     );
-
-    SELECT SCOPE_IDENTITY() AS gasto_ord_id;
 END
 GO

@@ -339,72 +339,95 @@ END;
 GO
 
 /* =========================================================
-   EXPENSAS ALEATORIAS (usa nuevo sp_AltaExpensa con @fecha_periodo)
+   EXPENSAS ALEATORIAS 
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarExpensasAleatorias','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarExpensasAleatorias;
 GO
+
 CREATE PROCEDURE prod.sp_CargarExpensasAleatorias
-    @cantidad    INT,
-    @fecha_desde DATE = NULL,
-    @fecha_hasta DATE = NULL
+    @cantidad   INT,
+    @anio_desde INT = NULL,   -- opcional: rango de años para sortear
+    @anio_hasta INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
+    ------------------------------------------------------------------
+    -- 0) Validaciones básicas / defaults de años
+    ------------------------------------------------------------------
     IF NOT EXISTS (SELECT 1 FROM prod.Consorcio WHERE borrado = 0)
     BEGIN
         RAISERROR('No hay consorcios activos.',16,1);
         RETURN;
     END;
 
-    IF @fecha_desde IS NULL SET @fecha_desde = DATEADD(MONTH, -6, CAST(GETDATE() AS DATE));
-    IF @fecha_hasta IS NULL SET @fecha_hasta = CAST(GETDATE() AS DATE);
+    IF @anio_desde IS NULL SET @anio_desde = YEAR(GETDATE()) - 1;
+    IF @anio_hasta IS NULL SET @anio_hasta = YEAR(GETDATE());
 
-    IF @fecha_desde > @fecha_hasta
+    IF @anio_desde > @anio_hasta
     BEGIN
-        RAISERROR('El rango de fechas es inválido.',16,1);
+        RAISERROR('anio_desde no puede ser mayor que anio_hasta.',16,1);
         RETURN;
     END;
 
+    ------------------------------------------------------------------
+    -- 1) Variables de trabajo
+    ------------------------------------------------------------------
     DECLARE
-        @maxId        INT,
-        @i            INT,
-        @fin          INT,
-        @rango_dias   INT,
+        @creadas      INT = 0,
+        @intentos     INT = 0,
+        @max_intentos INT = @cantidad * 20,
         @consorcio_id INT,
-        @fecha_rand   DATE,
-        @fecha_periodo DATE,
+        @anio         INT,
+        @mes          INT,
         @total        DECIMAL(12,2);
 
-    SELECT @maxId = ISNULL(MAX(expensa_id),0)
-    FROM prod.Expensa;
-
-    SET @i          = @maxId + 1;
-    SET @fin        = @i + @cantidad - 1;
-    SET @rango_dias = DATEDIFF(DAY, @fecha_desde, @fecha_hasta);
-
-    WHILE @i <= @fin
+    ------------------------------------------------------------------
+    -- 2) Bucle de creación de expensas
+    ------------------------------------------------------------------
+    WHILE @creadas < @cantidad AND @intentos < @max_intentos
     BEGIN
+        SET @intentos += 1;
+
+        -- Consorcio activo al azar
         SELECT TOP 1 @consorcio_id = consorcio_id
-        FROM prod.Consorcio 
-        WHERE borrado = 0 
+        FROM prod.Consorcio
+        WHERE borrado = 0
         ORDER BY NEWID();
 
+        -- Año aleatorio entre @anio_desde y @anio_hasta
+        SET @anio = @anio_desde 
+                    + ABS(CHECKSUM(NEWID())) % (@anio_hasta - @anio_desde + 1);
+
+        -- Mes aleatorio 1..12
+        SET @mes = ABS(CHECKSUM(NEWID())) % 12 + 1;
+
+        -- Total aleatorio
         SET @total = CAST(ABS(CHECKSUM(NEWID())) % 150000 + 5000 AS DECIMAL(12,2));
-        SET @fecha_rand   = DATEADD(DAY, ABS(CHECKSUM(NEWID())) % (@rango_dias + 1), @fecha_desde);
-        SET @fecha_periodo = @fecha_rand;
 
-        EXEC prod.sp_AltaExpensa
-             @consorcio_id  = @consorcio_id,
-             @total         = @total,
-             @fecha_periodo = @fecha_periodo;
+        BEGIN TRY
+            EXEC prod.sp_AltaExpensa
+                 @consorcio_id = @consorcio_id,
+                 @anio         = @anio,
+                 @mes          = @mes,
+                 @total        = @total;
 
-        SET @i += 1;
+            SET @creadas += 1;
+        END TRY
+        BEGIN CATCH
+            -- Si choca por expensa ya existente en ese consorcio+período u otro error,
+            -- lo ignoramos y seguimos intentando con otra combinación
+            -- (NO hacemos RAISERROR acá para no cortar el generador).
+        END CATCH;
+    END
+
+    IF @creadas < @cantidad
+    BEGIN
+        RAISERROR('No se pudo generar la cantidad solicitada de expensas (muchos conflictos de período/consorcio).',16,1);
     END
 END;
 GO
-
 /* =========================================================
    PROVEEDORES ALEATORIOS (INCREMENTAL)
    ========================================================= */
@@ -510,11 +533,29 @@ GO
 IF OBJECT_ID('prod.sp_CargarTitularidadesAleatorias','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarTitularidadesAleatorias;
 GO
+
 CREATE PROCEDURE prod.sp_CargarTitularidadesAleatorias
-    @cantidad INT
+    @cantidad     INT,
+    @fecha_desde  DATE = NULL,   -- rango para fechas de titularidad
+    @fecha_hasta  DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    -------------------------------------------------------
+    -- Rango de fechas por defecto: últimos 2 años
+    -------------------------------------------------------
+    IF @fecha_hasta IS NULL
+        SET @fecha_hasta = CAST(GETDATE() AS DATE);
+
+    IF @fecha_desde IS NULL
+        SET @fecha_desde = DATEADD(YEAR, -2, @fecha_hasta);
+
+    IF @fecha_desde > @fecha_hasta
+    BEGIN
+        RAISERROR('Rango de fechas inválido en sp_CargarTitularidadesAleatorias.',16,1);
+        RETURN;
+    END;
 
     IF NOT EXISTS (SELECT 1 FROM prod.Persona WHERE borrado = 0)
        OR NOT EXISTS (SELECT 1 FROM prod.UnidadFuncional WHERE borrado = 0)
@@ -524,38 +565,75 @@ BEGIN
     END;
 
     DECLARE
-        @maxId           INT,
-        @i               INT,
-        @fin             INT,
-        @persona_id      INT,
-        @uf_id           INT,
-        @tipo_titularidad VARCHAR(15);
+        @creadas      INT = 0,
+        @intentos     INT = 0,
+        @max_intentos INT,
+        @persona_id   INT,
+        @uf_id        INT,
+        @tipo_titularidad VARCHAR(15),
+        @fecha_tit    DATE,
+        @rango_dias   INT;
 
-    SELECT @maxId = ISNULL(MAX(titular_unidad_id),0)
-    FROM prod.Titularidad;
+    SET @rango_dias   = DATEDIFF(DAY, @fecha_desde, @fecha_hasta);
+    SET @max_intentos = @cantidad * 20;  -- para evitar bucles infinitos
 
-    SET @i   = @maxId + 1;
-    SET @fin = @i + @cantidad - 1;
-
-    WHILE @i <= @fin
+    WHILE @creadas < @cantidad AND @intentos < @max_intentos
     BEGIN
+        SET @intentos += 1;
+
+        ---------------------------------------------------
+        -- Elegir persona y UF activas al azar
+        ---------------------------------------------------
         SELECT TOP 1 @persona_id = persona_id
-        FROM prod.Persona WHERE borrado = 0 ORDER BY NEWID();
+        FROM prod.Persona
+        WHERE borrado = 0
+        ORDER BY NEWID();
 
         SELECT TOP 1 @uf_id = uf_id
-        FROM prod.UnidadFuncional WHERE borrado = 0 ORDER BY NEWID();
+        FROM prod.UnidadFuncional
+        WHERE borrado = 0
+        ORDER BY NEWID();
 
+        IF @persona_id IS NULL OR @uf_id IS NULL
+            CONTINUE;
+
+        ---------------------------------------------------
+        -- Tipo de titularidad random
+        ---------------------------------------------------
         IF ABS(CHECKSUM(NEWID())) % 2 = 0
             SET @tipo_titularidad = 'PROPIETARIO';
         ELSE
             SET @tipo_titularidad = 'INQUILINO';
 
-        EXEC prod.sp_AltaTitularidad
-             @persona_id,
-             @uf_id,
-             @tipo_titularidad;
+        ---------------------------------------------------
+        -- Fecha_desde aleatoria dentro del rango
+        ---------------------------------------------------
+        SET @fecha_tit = DATEADD(DAY,
+                                 ABS(CHECKSUM(NEWID())) % (@rango_dias + 1),
+                                 @fecha_desde);
 
-        SET @i += 1;
+        ---------------------------------------------------
+        -- Alta usando el SP de negocio
+        -- (si da error por duplicado, lo ignoramos y seguimos)
+        ---------------------------------------------------
+        BEGIN TRY
+            EXEC prod.sp_AltaTitularidad
+                 @persona_id       = @persona_id,
+                 @uf_id            = @uf_id,
+                 @fecha_desde      = @fecha_tit,
+                 @tipo_titularidad = @tipo_titularidad;
+
+            SET @creadas += 1;
+        END TRY
+        BEGIN CATCH
+            -- No relanzamos el error para poder seguir generando
+            -- PRINT 'Error Titularidad: ' + ERROR_MESSAGE();  -- opcional
+        END CATCH;
+    END;
+
+    IF @creadas < @cantidad
+    BEGIN
+        RAISERROR('No se pudo generar la cantidad solicitada de titularidades (probablemente por muchas combinaciones duplicadas).',16,1);
     END
 END;
 GO
@@ -618,8 +696,8 @@ BEGIN
                           ('RECHAZADO'),('ANULADO')
                         ) AS E(v) ORDER BY NEWID());
 
-        SET @cbu_cvu_origen = RIGHT('0000000000000000000000' +
-                                    CAST(ABS(CHECKSUM(NEWID())) % 100000000000000000000000 AS VARCHAR(24)), 22);
+        SELECT @cbu_cvu_origen = cbu_cvu
+        FROM prod.Persona ORDER BY NEWID();
 
         EXEC prod.sp_AltaPago
              @expensa_id,
@@ -700,7 +778,6 @@ BEGIN
     END
 END;
 GO
-
 /* =========================================================
    ORDINARIOS ALEATORIOS (INCREMENTAL)
    ========================================================= */
@@ -900,17 +977,23 @@ GO
 PRINT '=== INICIO LOTE DE PRUEBAS - ALTAS ALEATORIAS (10 POR TABLA) ===';
 
 DECLARE 
-    @fecha_desde DATE = '2024-01-01',
-    @fecha_hasta DATE = '2024-12-31';
+    @anio_desde   INT = 2024,
+    @anio_hasta   INT = 2025,
+    @fecha_desdeP DATE,
+    @fecha_hastaP DATE;
+
+-- Fechas para los pagos (desde 1/1/año_desde hasta 31/12/año_hasta)
+SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
+SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
 
 --------------------------------------------------
 -- 1) BASE: Consorcios, Personas, Proveedores
 --------------------------------------------------
 PRINT '1) Cargar Consorcios...';
-EXEC prod.sp_CargarConsorciosAleatorios @cantidad = 10;
+EXEC prod.sp_CargarConsorciosAleatorios  @cantidad = 10;
 
 PRINT '2) Cargar Personas...';
-EXEC prod.sp_CargarPersonasAleatorias   @cantidad = 10;
+EXEC prod.sp_CargarPersonasAleatorias    @cantidad = 10;
 
 PRINT '3) Cargar Proveedores...';
 EXEC prod.sp_CargarProveedoresAleatorios @cantidad = 10;
@@ -935,12 +1018,12 @@ EXEC prod.sp_CargarProveedorConsorcioAleatorios @cantidad = 10;
 --------------------------------------------------
 PRINT '7) Cargar Expensas...';
 EXEC prod.sp_CargarExpensasAleatorias 
-     @cantidad    = 10,
-     @fecha_desde = @fecha_desde,
-     @fecha_hasta = @fecha_hasta;
+     @cantidad   = 10,
+     @anio_desde = @anio_desde,
+     @anio_hasta = @anio_hasta;
 
 --------------------------------------------------
--- 5) Titularidades sobre UF
+-- 5) Titularidades
 --------------------------------------------------
 PRINT '8) Cargar Titularidades...';
 EXEC prod.sp_CargarTitularidadesAleatorias @cantidad = 10;
@@ -948,11 +1031,20 @@ EXEC prod.sp_CargarTitularidadesAleatorias @cantidad = 10;
 --------------------------------------------------
 -- 6) Pagos, Extraordinarios, Ordinarios, Facturas, Moras
 --------------------------------------------------
+--DECLARE 
+--    @anio_desde   INT = 2024,
+--    @anio_hasta   INT = 2025,
+--    @fecha_desdeP DATE,
+--    @fecha_hastaP DATE;
+
+-- Fechas para los pagos (desde 1/1/año_desde hasta 31/12/año_hasta)
+--SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
+--SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
 PRINT '9) Cargar Pagos...';
 EXEC prod.sp_CargarPagosAleatorios 
-     @cantidad    = 10,
-     @fecha_desde = @fecha_desde,
-     @fecha_hasta = @fecha_hasta;
+     @cantidad    = 100,
+     @fecha_desde = @fecha_desdeP,
+     @fecha_hasta = @fecha_hastaP;
 
 PRINT '10) Cargar Extraordinarios...';
 EXEC prod.sp_CargarExtraordinariosAleatorios @cantidad = 10;

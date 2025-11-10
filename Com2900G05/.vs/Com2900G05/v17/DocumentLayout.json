@@ -3,40 +3,44 @@
   "WorkspaceRootPath": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\03_ImportacionDeArchivos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
-      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:03_ImportacionDeArchivos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\01_CreacionBD.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
       "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:01_CreacionBD.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\02_CreacionTablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
-      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:02_CreacionTablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\04_AltaDatos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
-      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:04_AltaDatos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\05_BajaDatos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
-      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:05_BajaDatos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\Comprobacion_tablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
-      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:Comprobacion_tablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\08_GeneracionAutomatica.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
-      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:08_GeneracionAutomatica.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\07_PruebasBajas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
       "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:07_PruebasBajas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\03_ImportacionDeArchivos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
+      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:03_ImportacionDeArchivos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\Comprobacion_tablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
+      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:Comprobacion_tablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\02_CreacionTablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
+      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:02_CreacionTablas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\05_BajaDatos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
+      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:05_BajaDatos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\08_GeneracionAutomatica.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
+      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:08_GeneracionAutomatica.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\04_AltaDatos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
+      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:04_AltaDatos.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\06_PruebasAltas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
       "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:06_PruebasAltas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\09_GenerarExpensas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}",
+      "RelativeMoniker": "D:0:0:{41E999C9-16F6-1851-5746-D3C45D044E8D}|Com2900G05.ssmssqlproj|solutionrelative:09_GenerarExpensas.sql||{B5A506EB-11BE-4782-9A18-21265C2CA0B4}"
     }
   ],
   "DocumentGroupContainers": [
@@ -46,7 +50,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 8,
+          "SelectedChildIndex": 9,
           "Children": [
             {
               "$type": "Bookmark",
@@ -70,102 +74,113 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "04_AltaDatos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (55))",
-              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\04_AltaDatos.sql",
-              "RelativeDocumentMoniker": "04_AltaDatos.sql",
-              "ToolTip": "04_AltaDatos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (55))",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
-              "WhenOpened": "2025-11-09T02:43:10.54Z",
-              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (55))"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "02_CreacionTablas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (53))",
+              "DocumentIndex": 4,
+              "Title": "02_CreacionTablas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (52))",
               "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\02_CreacionTablas.sql",
               "RelativeDocumentMoniker": "02_CreacionTablas.sql",
-              "ToolTip": "02_CreacionTablas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (53))",
+              "ToolTip": "02_CreacionTablas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (52))",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
               "WhenOpened": "2025-11-02T15:14:54.166Z",
-              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (53))"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "01_CreacionBD.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (67))",
-              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\01_CreacionBD.sql",
-              "RelativeDocumentMoniker": "01_CreacionBD.sql",
-              "ToolTip": "01_CreacionBD.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (67))",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
-              "WhenOpened": "2025-11-09T02:36:23.759Z",
-              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (67))"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "03_ImportacionDeArchivos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (56))",
-              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\03_ImportacionDeArchivos.sql",
-              "RelativeDocumentMoniker": "03_ImportacionDeArchivos.sql",
-              "ToolTip": "03_ImportacionDeArchivos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (56))",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
-              "WhenOpened": "2025-11-09T02:33:14.136Z",
-              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (56))"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "05_BajaDatos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (57))",
-              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\05_BajaDatos.sql",
-              "RelativeDocumentMoniker": "05_BajaDatos.sql",
-              "ToolTip": "05_BajaDatos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (57))",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
-              "WhenOpened": "2025-11-09T03:15:13.432Z",
-              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (57))"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "Comprobacion_tablas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (59))",
-              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\Comprobacion_tablas.sql",
-              "RelativeDocumentMoniker": "Comprobacion_tablas.sql",
-              "ToolTip": "Comprobacion_tablas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (59))",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
-              "WhenOpened": "2025-11-09T02:13:44.151Z",
-              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (59))"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "08_GeneracionAutomatica.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (56))",
-              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\08_GeneracionAutomatica.sql",
-              "RelativeDocumentMoniker": "08_GeneracionAutomatica.sql",
-              "ToolTip": "08_GeneracionAutomatica.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (56))",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
-              "WhenOpened": "2025-11-09T04:43:29.573Z",
-              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (56))"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "07_PruebasBajas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (52))",
-              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\07_PruebasBajas.sql",
-              "RelativeDocumentMoniker": "07_PruebasBajas.sql",
-              "ToolTip": "07_PruebasBajas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (52))",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
-              "WhenOpened": "2025-11-09T04:09:30.276Z",
               "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (52))"
             },
             {
               "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Comprobacion_tablas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (57))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\Comprobacion_tablas.sql",
+              "RelativeDocumentMoniker": "Comprobacion_tablas.sql",
+              "ToolTip": "Comprobacion_tablas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (57))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-09T02:13:44.151Z",
+              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (57))"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "03_ImportacionDeArchivos.sql - PABLO-BATTISTON.master (PABLO-BATTISTON\\Pablo (56))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\03_ImportacionDeArchivos.sql",
+              "RelativeDocumentMoniker": "03_ImportacionDeArchivos.sql",
+              "ToolTip": "03_ImportacionDeArchivos.sql - PABLO-BATTISTON.master (PABLO-BATTISTON\\Pablo (56))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-09T02:33:14.136Z",
+              "EditorCaption": " - PABLO-BATTISTON.master (PABLO-BATTISTON\\Pablo (56))"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "07_PruebasBajas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (66))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\07_PruebasBajas.sql",
+              "RelativeDocumentMoniker": "07_PruebasBajas.sql",
+              "ToolTip": "07_PruebasBajas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (66))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-09T04:09:30.276Z",
+              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (66))"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "01_CreacionBD.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (65))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\01_CreacionBD.sql",
+              "RelativeDocumentMoniker": "01_CreacionBD.sql",
+              "ToolTip": "01_CreacionBD.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (65))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-09T02:36:23.759Z",
+              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (65))"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "05_BajaDatos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (67))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\05_BajaDatos.sql",
+              "RelativeDocumentMoniker": "05_BajaDatos.sql",
+              "ToolTip": "05_BajaDatos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (67))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-09T03:15:13.432Z",
+              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (67))"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "08_GeneracionAutomatica.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (53))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\08_GeneracionAutomatica.sql",
+              "RelativeDocumentMoniker": "08_GeneracionAutomatica.sql",
+              "ToolTip": "08_GeneracionAutomatica.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (53))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-09T04:43:29.573Z",
+              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (53))"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "04_AltaDatos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (63))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\04_AltaDatos.sql",
+              "RelativeDocumentMoniker": "04_AltaDatos.sql",
+              "ToolTip": "04_AltaDatos.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (63))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-09T02:43:10.54Z",
+              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (63))"
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 8,
-              "Title": "06_PruebasAltas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (51))",
+              "Title": "06_PruebasAltas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (63))",
               "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\06_PruebasAltas.sql",
               "RelativeDocumentMoniker": "06_PruebasAltas.sql",
-              "ToolTip": "06_PruebasAltas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (51))",
+              "ToolTip": "06_PruebasAltas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (63))",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
               "WhenOpened": "2025-11-09T03:56:14.414Z",
-              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (51))"
+              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (63))"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "09_GenerarExpensas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (70))",
+              "DocumentMoniker": "C:\\Bases-de-Datos-Aplicada-2-cuatri-2025\\Com2900G05\\09_GenerarExpensas.sql",
+              "RelativeDocumentMoniker": "09_GenerarExpensas.sql",
+              "ToolTip": "09_GenerarExpensas.sql - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (70))",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2025-11-10T17:19:15.331Z",
+              "EditorCaption": " - PABLO-BATTISTON.COM2900G05 (PABLO-BATTISTON\\Pablo (70))"
             }
           ]
         }

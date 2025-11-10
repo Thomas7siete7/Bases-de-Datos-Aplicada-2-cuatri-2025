@@ -70,6 +70,12 @@
           <AssociatedConnUserName />
           <FullPath>08_GeneracionAutomatica.sql</FullPath>
         </FileNode>
+        <FileNode Name="09_GenerarExpensas.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>09_GenerarExpensas.sql</FullPath>
+        </FileNode>
         <FileNode Name="Comprobacion_tablas.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>

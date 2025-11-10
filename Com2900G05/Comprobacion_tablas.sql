@@ -3,7 +3,7 @@ GO
 
 SELECT * FROM prod.Consorcio
 SELECT * FROM prod.Expensa
-SELECT * FROM prod.Extraordinarios --Sin datos
+SELECT * FROM prod.Extraordinarios;--Sin datos
 SELECT * FROM prod.Factura --Sin datos
 SELECT * FROM prod.Mora --Sin datos
 SELECT * FROM prod.Ordinarios
