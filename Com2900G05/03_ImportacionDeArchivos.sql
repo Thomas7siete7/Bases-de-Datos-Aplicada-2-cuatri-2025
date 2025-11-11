@@ -1,5 +1,6 @@
 USE COM2900G05;
 GO
+
 IF OBJECT_ID('prod.sp_ImportarConsorcios','P') IS NOT NULL DROP PROCEDURE prod.sp_ImportarConsorcios;
 GO
 CREATE PROCEDURE prod.sp_ImportarConsorcios
@@ -50,7 +51,8 @@ BEGIN
     COMMIT;
   END TRY
   BEGIN CATCH
-    IF XACT_STATE() <> 0 ROLLBACK; THROW;
+    ROLLBACK TRANSACTION;
+    THROW;
   END CATCH
 END
 GO
@@ -91,23 +93,44 @@ BEGIN
   EXEC(@sql);
 
   BEGIN TRY
-    BEGIN TRAN;
-      MERGE prod.Proveedor AS D
-      USING (SELECT DISTINCT proveedor FROM #Prov) AS S
-        ON D.nombre = S.proveedor
-      WHEN NOT MATCHED THEN INSERT(nombre) VALUES(S.proveedor);
+        BEGIN TRAN;
 
-      INSERT INTO prod.ProveedorConsorcio(proveedor_id, consorcio_id, tipo_gasto, referencia)
-      SELECT DISTINCT
-        P.proveedor_id, C.consorcio_id, R.tipo_gasto, R.referencia
-      FROM #Prov R
-      JOIN prod.Proveedor P ON P.nombre = R.proveedor
-      JOIN prod.Consorcio C ON C.nombre = R.consorcio;
-    COMMIT;
-  END TRY
-  BEGIN CATCH
-    IF XACT_STATE() <> 0 ROLLBACK; THROW;
-  END CATCH
+        /* 2) Catálogo de proveedores (sin duplicados) */
+        MERGE prod.Proveedor AS D
+        USING (SELECT DISTINCT proveedor FROM #Prov) AS S
+          ON D.nombre = S.proveedor
+        WHEN NOT MATCHED THEN
+          INSERT (nombre) VALUES (S.proveedor);
+
+        /* 3) Relación Proveedor–Consorcio (sin duplicados) */
+        ;WITH Src AS (
+            SELECT DISTINCT
+                P.proveedor_id,
+                C.consorcio_id,
+                R.tipo_gasto,
+                R.referencia
+            FROM #Prov R
+            JOIN prod.Proveedor P 
+                 ON P.nombre = R.proveedor
+            JOIN prod.Consorcio C 
+                 ON C.nombre = R.consorcio
+        )
+        MERGE prod.ProveedorConsorcio AS D
+        USING Src AS S
+          ON  D.proveedor_id = S.proveedor_id
+          AND D.consorcio_id = S.consorcio_id
+          AND ISNULL(D.tipo_gasto,'') = ISNULL(S.tipo_gasto,'')
+          AND ISNULL(D.referencia,'') = ISNULL(S.referencia,'')
+        WHEN NOT MATCHED THEN
+          INSERT (proveedor_id, consorcio_id, tipo_gasto, referencia)
+          VALUES (S.proveedor_id, S.consorcio_id, S.tipo_gasto, S.referencia);
+
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END
 GO
 
