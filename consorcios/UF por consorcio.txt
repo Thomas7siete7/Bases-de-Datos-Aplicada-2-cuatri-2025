@@ -134,7 +134,8 @@ Pereyra Iraola	37	9	A	2,8	35	SI	SI	4	8
 Pereyra Iraola	38	9	B	2,8	35	SI	SI	4	8
 Pereyra Iraola	39	9	C	2,8	35	SI	SI	4	8
 Pereyra Iraola	40	9	D	2,8	35	SI	SI	4	8
-					 				
+Pereyra Iraola	41	10	A	2,8	35	SI	SI	4	8
+									
 									
 									
 									

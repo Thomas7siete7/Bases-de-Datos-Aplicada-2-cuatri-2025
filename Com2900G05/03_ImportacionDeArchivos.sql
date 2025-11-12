@@ -544,7 +544,7 @@ BEGIN
     WITH (
       FIRSTROW = 2,
       FIELDTERMINATOR = ''|'',
-      ROWTERMINATOR   = ''0x0a'',
+      ROWTERMINATOR   = ''\n'',
       CODEPAGE        = ''65001'',
       TABLOCK
     );';
@@ -607,14 +607,11 @@ BEGIN
     p.persona_id,
     u.uf_id,
     tipo_titularidad = CASE WHEN p.inquilino = 1 THEN 'INQUILINO' ELSE 'PROPIETARIO' END,
-    fecha_desde = ISNULL(
-                     (
-                       SELECT MIN(pg.fecha)
-                       FROM prod.Pago pg
-                       WHERE pg.cbu_cvu_origen = p.cbu_cvu
-                     ),
-                     '2000-01-01'                       -- fallback si no hay pagos
-                   ),
+    fecha_desde = DATEADD(
+                            DAY, 
+                            ABS(CHECKSUM(NEWID())) % DATEDIFF(DAY, '2001-01-01', '2010-12-31'), 
+                            '2001-01-01'
+                        ),
     fecha_hasta = u.fecha_hasta
   INTO #Tit
   FROM #UF_ok u
@@ -624,16 +621,46 @@ BEGIN
   -- 6) Insert sin duplicar
   BEGIN TRY
     BEGIN TRAN;
-      INSERT INTO prod.Titularidad (persona_id, uf_id, tipo_titularidad, fecha_desde, fecha_hasta)
-      SELECT t.persona_id, t.uf_id, t.tipo_titularidad, t.fecha_desde, t.fecha_hasta
-      FROM #Tit t
-      WHERE NOT EXISTS (
-        SELECT 1 
-        FROM prod.Titularidad x
-        WHERE x.persona_id = t.persona_id
-          AND x.uf_id      = t.uf_id
-          AND x.fecha_desde = t.fecha_desde
-      );
+      --INSERT INTO prod.Titularidad (persona_id, uf_id, tipo_titularidad, fecha_desde, fecha_hasta)
+      --SELECT t.persona_id, t.uf_id, t.tipo_titularidad, t.fecha_desde, t.fecha_hasta
+      --FROM #Tit t
+      --WHERE NOT EXISTS (
+      --  SELECT 1 
+      --  FROM prod.Titularidad x
+      --  WHERE x.persona_id = t.persona_id
+      --    AND x.uf_id      = t.uf_id
+      --    AND x.fecha_desde = t.fecha_desde
+      --);
+
+      MERGE prod.Titularidad AS D
+        USING #Tit AS S
+            ON  D.persona_id = S.persona_id
+            OR D.uf_id      = S.uf_id
+            AND D.tipo_titularidad = S.tipo_titularidad
+            -- Igualamos el período completo, tratando NULL de forma consistente
+            -- D.fecha_desde = S.fecha_desde
+            AND ISNULL(D.fecha_hasta, '9999-12-31') = ISNULL(S.fecha_hasta, '9999-12-31')
+        WHEN NOT MATCHED BY TARGET
+             AND NOT (
+               -- si la nueva viene "abierta"...
+               S.fecha_hasta IS NULL AND
+               (
+                 -- ...y ya hay una abierta para la misma persona
+                 EXISTS ( SELECT 1
+                          FROM prod.Titularidad X
+                          WHERE X.persona_id = S.persona_id
+                            AND X.fecha_hasta IS NULL )
+                 OR
+                 -- ...o ya hay una abierta para la misma UF
+                 EXISTS ( SELECT 1
+                          FROM prod.Titularidad X
+                          WHERE X.uf_id = S.uf_id
+                            AND X.fecha_hasta IS NULL )
+               )
+             )
+        THEN
+          INSERT (persona_id, uf_id, tipo_titularidad, fecha_desde, fecha_hasta)
+          VALUES (S.persona_id, S.uf_id, S.tipo_titularidad, S.fecha_desde, S.fecha_hasta);
     COMMIT;
   END TRY
   BEGIN CATCH
@@ -1283,7 +1310,7 @@ BEGIN
 
       -- NO ASOCIADO (expensa_id = NULL)
       INSERT INTO prod.Pago (expensa_id, fecha, importe, nro_transaccion, estado, cbu_cvu_origen)
-      SELECT NULL, m.fecha, m.importe, m.id_pago, 'NO ASOCIADO', m.cbu_norm
+      SELECT m.expensa_id, m.fecha, m.importe, m.id_pago, 'NO ASOCIADO', m.cbu_norm
       FROM #match m
       WHERE m.estado_calc = 'NO ASOCIADO'
         AND NOT EXISTS (SELECT 1 FROM prod.Pago p WHERE p.nro_transaccion = m.id_pago);
@@ -1324,19 +1351,33 @@ GO
 
 EXEC prod.sp_ImportarUF_TXT 
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\UF por consorcio.txt';
+GO
+
 
 EXEC prod.sp_CargarPersonas_CSV
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Inquilino-propietarios-datos.csv';
+GO
 
 EXEC prod.sp_CargarTitularidad_desdeUF
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Inquilino-propietarios-UF.csv';
+GO
 
 EXEC prod.sp_ImportarServicios_JSON 
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Servicios.Servicios.json',
   @anio = 2025;
+GO
 
 EXEC prod.sp_ImportarPagos_CSV
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\pagos_consorcios.csv';
+GO
 
 
+
+
+
+
+
+
+
+SELECT * FROM prod.Titularidad order by uf_id--Inquilino
 

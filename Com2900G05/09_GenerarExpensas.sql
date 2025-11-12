@@ -1,9 +1,6 @@
 USE Com2900G05;
 GO
 
-USE Com2900G05;
-GO
-
 IF OBJECT_ID('prod.sp_GenerarExpensaYProrrateo','P') IS NOT NULL
     DROP PROCEDURE prod.sp_GenerarExpensaYProrrateo;
 GO
@@ -40,10 +37,10 @@ BEGIN
         @venc1      DATE,
         @venc2      DATE;
 
-    -- criterio: quinto día del mes como período
+    -- Período: 5º día del mes
     SET @periodo = DATEFROMPARTS(@anio, @mes, 5);
 
-    -- ¿ya existe?
+    -- ¿ya existe la expensa?
     SELECT 
         @expensa_id = e.expensa_id,
         @venc1      = e.vencimiento1,
@@ -62,7 +59,7 @@ BEGIN
              @consorcio_id = @consorcio_id,
              @anio         = @anio,
              @mes          = @mes,
-             @total        = NULL,   -- se recalcula abajo
+             @total        = NULL,   -- se recalcula acá
              @dias_vto1    = 10,
              @dias_vto2    = 20;
 
@@ -84,29 +81,29 @@ BEGIN
         @total_ordinarios_cur  DECIMAL(12,2),
         @total_extra_cur       DECIMAL(12,2);
 
-    -- gastos ordinarios del MES ACTUAL (expensa actual)
+    -- Ordinarios mes actual
     SELECT @total_ordinarios_cur = ISNULL(SUM(o.importe),0.00)
     FROM prod.Ordinarios o
     WHERE o.expensa_id = @expensa_id
       AND o.borrado    = 0;
 
-    -- gastos extraordinarios del MES ACTUAL (expensa actual)
+    -- Extraordinarios mes actual
     SELECT @total_extra_cur = ISNULL(SUM(x.valor_cuota_actual),0.00)
     FROM prod.Extraordinarios x
     WHERE x.expensa_id = @expensa_id
       AND x.borrado    = 0;
 
-    -- gastos ordinarios de MESES ANTERIORES del consorcio
+    -- Ordinarios de meses anteriores
     SELECT @total_ordinarios_prev = ISNULL(SUM(o.importe),0.00)
     FROM prod.Ordinarios o
     JOIN prod.Expensa e
       ON e.expensa_id = o.expensa_id
     WHERE e.consorcio_id = @consorcio_id
       AND e.borrado      = 0
-      AND e.periodo      < @periodo   -- sólo expensas anteriores
+      AND e.periodo      < @periodo
       AND o.borrado      = 0;
 
-    -- gastos extraordinarios de MESES ANTERIORES del consorcio
+    -- Extraordinarios de meses anteriores
     SELECT @total_extra_prev = ISNULL(SUM(x.valor_cuota_actual),0.00)
     FROM prod.Extraordinarios x
     JOIN prod.Expensa e
@@ -117,7 +114,7 @@ BEGIN
       AND x.borrado      = 0;
 
     ------------------------------------------------------------------
-    -- 4) Base de UF (incluye cocheras/bauleras y propietario)
+    -- 4) Base de UF + propietario
     ------------------------------------------------------------------
     IF OBJECT_ID('tempdb..#Prorrateo') IS NOT NULL
         DROP TABLE #Prorrateo;
@@ -152,15 +149,15 @@ BEGIN
                     CASE 
                         WHEN t.fecha_desde <= @periodo
                          AND (t.fecha_hasta IS NULL OR t.fecha_hasta >= @periodo)
-                        THEN 0      -- vigente al período
-                        ELSE 1      -- no vigente, pero último conocido
+                        THEN 0
+                        ELSE 1
                     END,
                     t.fecha_desde DESC
             ) AS rn
         FROM prod.Titularidad t
         JOIN prod.Persona p
           ON p.persona_id = t.persona_id
-        WHERE t.tipo_titularidad = 'PROPIETARIO'
+        --WHERE t.tipo_titularidad = 'PROPIETARIO'
     ),
     UFConPropietario AS (
         SELECT
@@ -230,14 +227,18 @@ BEGIN
                     ELSE 0 
                 END) AS pagos_actual,
 
-            -- interés por mora SOLO de la expensa actual
+            -- INTERÉS POR MORA (según la consigna):
+            --   * entre vto1 y vto2: 2% por día
+            --   * después de vto2  : 5% por mes
             SUM(
                 CASE 
                     WHEN pd.expensa_id = @expensa_id THEN
                         CASE
                             WHEN pd.fecha <= @venc1 THEN 0
-                            WHEN pd.fecha <= @venc2 THEN pd.importe * 0.02
-                            ELSE pd.importe * 0.05
+                            WHEN pd.fecha <= @venc2 THEN 
+                                 pd.importe * 0.02 * DATEDIFF(DAY, @venc1, pd.fecha)
+                            ELSE 
+                                 pd.importe * 0.05 * (DATEDIFF(MONTH, @venc2, pd.fecha) + 1)
                         END
                     ELSE 0
                 END
@@ -262,7 +263,7 @@ BEGIN
         u.cant_bauleras                                          AS Bauleras,
         u.propietario                                            AS Propietario,
 
-        -- Cargos históricos (anteriores al periodo actual), prorrateados por coeficiente
+        -- Cargos históricos prorrateados
         CAST(ROUND(
             (ISNULL(@total_ordinarios_prev,0.00) + ISNULL(@total_extra_prev,0.00))
             * ISNULL(u.coeficiente,0) / 100.0, 2
@@ -300,8 +301,7 @@ BEGIN
             AS DECIMAL(12,2)
         )                                                        AS ExpensasExtraordinarias,
 
-        -- Total a Pagar:
-        -- deuda histórica + interés del mes + expensas ord/extra del mes
+        -- Total a pagar: deuda histórica + intereses + cargos del mes
         CAST(
             (
                 ROUND(
@@ -326,19 +326,15 @@ BEGIN
     ORDER BY u.uf_id;
 
     ------------------------------------------------------------------
-    -- 8) Devolver resultado (Estado de Cuentas y Prorrateo)
+    -- 8) Devolver resultado
     ------------------------------------------------------------------
     SELECT *
     FROM #Prorrateo
     ORDER BY Uf;
 
     ------------------------------------------------------------------
-    -- 9) Actualizar el total de la EXPENSA con la suma de TotalAPagar
-    ------------------------------------------------------------------
-    ------------------------------------------------------------------
-    -- 9) Actualizar el total de la EXPENSA
-    --    Sólo con los cargos del período (ord + extra + intereses),
-    --    sin arrastrar saldos anteriores para no violar el CHECK.
+    -- 9) Actualizar total de la EXPENSA
+    --    Sólo cargos del período (ord + extra + intereses)
     ------------------------------------------------------------------
     UPDATE e
        SET e.total = (
@@ -355,30 +351,64 @@ END;
 GO
 
 
+
 EXEC prod.sp_GenerarExpensaYProrrateo 
      @consorcio_id = 1, 
-     @anio = 2025, 
-     @mes  = 3;
+     @anio = 2024, 
+     @mes  = 12;
 
 -- 1) Ver cuántas expensas tiene ese consorcio y sus períodos
 SELECT expensa_id, periodo
 FROM prod.Expensa
-WHERE consorcio_id = 1
+WHERE consorcio_id = 97
 ORDER BY periodo;
 
-EXEC prod.sp_AltaPago
-         @expensa_id      = 6,
-         @fecha           = '2025-03-05',
-         @importe         = 100000.00,
-         @nro_transaccion = '12312311123',  -- ya usado
-         @estado          = 'APLICADO',
-         @cbu_cvu_origen  = '000000000000130811491';
+;WITH M2PorUF AS (
+    SELECT
+        UF.uf_id,
+        UF.consorcio_id,
+        UF.cant_m2 
+          + ISNULL(SUM(UA.m2_accesorio), 0) AS m2_total_uf,
+        UF.coeficiente
+    FROM prod.UnidadFuncional UF
+    LEFT JOIN prod.UnidadAccesoria UA
+        ON UA.uf_id = UF.uf_id
+    -- WHERE UF.borrado = 0  -- si usás borrado lógico
+    GROUP BY
+        UF.uf_id,
+        UF.consorcio_id,
+        UF.cant_m2,
+        UF.coeficiente
+)
+SELECT
+    C.consorcio_id,
+    C.cant_m2_total,
+    SUM(M.m2_total_uf)      AS m2_usados,
+    SUM(M.coeficiente)      AS coef_total
+FROM prod.Consorcio C
+JOIN M2PorUF M
+    ON C.consorcio_id = M.consorcio_id
+GROUP BY
+    C.consorcio_id,
+    C.cant_m2_total;
+
+
+
+
+
+--EXEC prod.sp_AltaPago
+--         @expensa_id      = 6,
+--         @fecha           = '2025-03-05',
+--         @importe         = 100000.00,
+--         @nro_transaccion = '12312311123',  -- ya usado
+--         @estado          = 'APLICADO',
+--         @cbu_cvu_origen  = '000000000000130811491';
 
 ---- 2) Ver pagos de ese consorcio y si son anteriores al período que estás prorrateando
 SELECT p.*
 FROM prod.Pago p
 JOIN prod.Expensa e ON e.expensa_id = p.expensa_id
-WHERE e.consorcio_id = 5
+WHERE e.consorcio_id = 3
   AND p.estado IN ('APLICADO','ASOCIADO')
 ORDER BY e.periodo, p.fecha;
 

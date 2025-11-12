@@ -1002,7 +1002,7 @@ EXEC prod.sp_CargarProveedoresAleatorios @cantidad = 10;
 -- 2) UF y UA
 --------------------------------------------------
 PRINT '4) Cargar Unidades Funcionales...';
-EXEC prod.sp_CargarUFAleatorias @cantidad = 10;
+EXEC prod.sp_CargarUFAleatorias @cantidad = 1000;
 
 PRINT '5) Cargar Unidades Accesorias...';
 EXEC prod.sp_CargarUAAleatorias @cantidad = 10;

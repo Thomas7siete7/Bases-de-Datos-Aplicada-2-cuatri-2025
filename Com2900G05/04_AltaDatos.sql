@@ -523,6 +523,8 @@ BEGIN
     ------------------------------------------------------------------
     INSERT INTO prod.Expensa(consorcio_id, periodo, vencimiento1, vencimiento2, total, borrado)
     VALUES(@consorcio_id, @periodo, @venc1, @venc2, @total_final, 0);
+
+    SELECT SCOPE_IDENTITY() AS expensa_id;
 END
 GO
 
