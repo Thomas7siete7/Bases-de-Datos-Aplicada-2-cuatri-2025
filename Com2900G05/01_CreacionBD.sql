@@ -10,6 +10,12 @@
 USE master;
 GO
 
+EXEC master.dbo.sp_MSset_oledb_prop N'Microsoft.ACE.OLEDB.12.0', N'AllowInProcess', 1
+GO 
+EXEC master.dbo.sp_MSset_oledb_prop N'Microsoft.ACE.OLEDB.12.0', N'DynamicParameters', 1
+GO
+
+
 DECLARE @dbName VARCHAR(128) = 'COM2900G05';
 DECLARE @dataFile VARCHAR(260);
 DECLARE @logFile VARCHAR(260);
@@ -54,4 +60,12 @@ GO
 
 -- Cambiar a la nueva base de datos
 USE COM2900G05;
+GO
+
+EXEC sp_configure 'show advanced options', 1;
+RECONFIGURE;
+EXEC sp_configure 'Ole Automation Procedures', 1;
+RECONFIGURE;
+
+RECONFIGURE;
 GO

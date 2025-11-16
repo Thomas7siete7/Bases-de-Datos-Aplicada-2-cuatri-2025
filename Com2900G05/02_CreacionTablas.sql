@@ -355,3 +355,101 @@ CREATE UNIQUE NONCLUSTERED INDEX IdX_Factura_Nro ON prod.Factura(nro_comprobante
 CREATE NONCLUSTERED INDEX IdX_Factura_CAE ON prod.Factura(cae) INCLUDE (expensa_id, fecha_emision, monto_total);
 
 CREATE NONCLUSTERED INDEX IX_ProvCons_Consorcio_Tipo ON prod.ProveedorConsorcio(consorcio_id, tipo_gasto, proveedor_id) INCLUDE (referencia);
+
+
+IF OBJECT_ID('prod.sp_ObtenerQuintoDiaHabilConFeriados','P') IS NOT NULL
+    DROP PROCEDURE prod.sp_ObtenerQuintoDiaHabilConFeriados;
+GO
+
+CREATE PROCEDURE prod.sp_ObtenerQuintoDiaHabilConFeriados
+    @anio INT,
+    @mes  INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @json NVARCHAR(MAX) = NULL;
+    DECLARE @obj  INT;
+    DECLARE @url  NVARCHAR(200);
+
+    -----------------------------------------------------
+    -- 1) Llamar API Argentinadatos para ese AÑO
+    -----------------------------------------------------
+    SET @url = N'https://api.argentinadatos.com/v1/feriados/' 
+               + CONVERT(varchar(4), @anio);
+
+    BEGIN TRY
+        EXEC sp_OACreate 'MSXML2.XMLHTTP', @obj OUT;
+        EXEC sp_OAMethod @obj, 'open', NULL, 'GET', @url, 'false';
+        EXEC sp_OAMethod @obj, 'send';
+        EXEC sp_OAMethod @obj, 'responseText', @json OUTPUT;
+        EXEC sp_OADestroy @obj; 
+    END TRY
+    BEGIN CATCH
+        SET @json = NULL;
+        IF @obj IS NOT NULL EXEC sp_OADestroy @obj; 
+    END CATCH;
+
+    -----------------------------------------------------
+    -- 2) Si la API NO responde ? fallback SIN feriados
+    -----------------------------------------------------
+    IF @json IS NULL OR ISJSON(@json) = 0
+    BEGIN
+        ;WITH DiasMes AS (
+            SELECT DATEFROMPARTS(@anio, @mes, n) AS Fecha
+            FROM (
+                SELECT TOP (DAY(EOMONTH(DATEFROMPARTS(@anio, @mes, 1))))
+                       ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS n
+                FROM master..spt_values
+            ) AS x
+        ),
+        DiasHabiles AS (
+            SELECT Fecha
+            FROM DiasMes
+            WHERE DATENAME(WEEKDAY, Fecha) NOT IN ('Saturday','Sunday')
+        ),
+        Numerados AS (
+            SELECT Fecha,
+                   ROW_NUMBER() OVER (ORDER BY Fecha) AS rn
+            FROM DiasHabiles
+        )
+        SELECT Fecha AS QuintoDiaHabil
+        FROM Numerados
+        WHERE rn = 5;
+
+        RETURN;
+    END;
+
+    -----------------------------------------------------
+    -- 3) API OK ? 5.º día hábil REAL con feriados
+    -----------------------------------------------------
+    ;WITH Feriados AS (
+        SELECT CONVERT(date, fecha) AS fecha
+        FROM OPENJSON(@json)
+        WITH (fecha NVARCHAR(10) '$.fecha')
+        WHERE MONTH(CONVERT(date, fecha)) = @mes      -- solo feriados del MES
+    ),
+    DiasMes AS (
+        SELECT DATEFROMPARTS(@anio, @mes, n) AS Fecha
+        FROM (
+            SELECT TOP (DAY(EOMONTH(DATEFROMPARTS(@anio, @mes, 1))))
+                   ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS n
+            FROM master..spt_values
+        ) nums
+    ),
+    DiasHabiles AS (
+        SELECT d.Fecha
+        FROM DiasMes d
+        WHERE DATENAME(WEEKDAY, d.Fecha) NOT IN ('Saturday','Sunday')
+          AND d.Fecha NOT IN (SELECT fecha FROM Feriados)
+    ),
+    Numerados AS (
+        SELECT Fecha,
+               ROW_NUMBER() OVER (ORDER BY Fecha) AS rn
+        FROM DiasHabiles
+    )
+    SELECT Fecha AS QuintoDiaHabil
+    FROM Numerados
+    WHERE rn = 5;
+END;
+GO

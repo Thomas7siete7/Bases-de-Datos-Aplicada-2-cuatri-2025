@@ -37,8 +37,31 @@ BEGIN
         @venc1      DATE,
         @venc2      DATE;
 
-    -- Período: 5º día del mes
-    SET @periodo = DATEFROMPARTS(@anio, @mes, 5);
+    ------------------------------------------------------------------
+    -- 2.a) Obtener quinto día hábil del mes @anio/@mes
+    ------------------------------------------------------------------
+    DECLARE @tQuinto TABLE(QuintoDiaHabil DATE);
+    DECLARE @fechaQuinto DATE;
+
+    INSERT INTO @tQuinto(QuintoDiaHabil)
+    EXEC prod.sp_ObtenerQuintoDiaHabilConFeriados @anio = @anio, @mes = @mes;
+
+    SELECT TOP 1 @fechaQuinto = QuintoDiaHabil
+    FROM @tQuinto;
+
+    ------------------------------------------------------------------
+    -- 2.b) Período: usar ese día hábil como día del período
+    ------------------------------------------------------------------
+    IF @fechaQuinto IS NULL
+    BEGIN
+        -- fallback improbable, pero por las dudas:
+        SET @periodo = DATEFROMPARTS(@anio, @mes, 5);
+    END
+    ELSE
+    BEGIN
+        SET @periodo = @fechaQuinto;
+    END
+
 
     -- ¿ya existe la expensa?
     SELECT 
@@ -114,7 +137,7 @@ BEGIN
       AND x.borrado      = 0;
 
     ------------------------------------------------------------------
-    -- 4) Base de UF + propietario
+    -- 4) Base de UF + propietario (para prorrateo)
     ------------------------------------------------------------------
     IF OBJECT_ID('tempdb..#Prorrateo') IS NOT NULL
         DROP TABLE #Prorrateo;
@@ -157,7 +180,6 @@ BEGIN
         FROM prod.Titularidad t
         JOIN prod.Persona p
           ON p.persona_id = t.persona_id
-        --WHERE t.tipo_titularidad = 'PROPIETARIO'
     ),
     UFConPropietario AS (
         SELECT
@@ -221,15 +243,15 @@ BEGIN
                     ELSE 0 
                 END) AS pagos_prev,
 
-            -- pagos de la expensa actual (por si se quiere mostrar aparte)
+            -- pagos de la expensa actual (informativo)
             SUM(CASE 
                     WHEN pd.expensa_id = @expensa_id THEN pd.importe 
                     ELSE 0 
                 END) AS pagos_actual,
 
-            -- INTERÉS POR MORA (según la consigna):
-            --   * entre vto1 y vto2: 2% por día
-            --   * después de vto2  : 5% por mes
+            -- INTERÉS POR MORA:
+            --   entre vto1 y vto2: 2 % por día
+            --   después de vto2  : 5 % por mes
             SUM(
                 CASE 
                     WHEN pd.expensa_id = @expensa_id THEN
@@ -253,7 +275,7 @@ BEGIN
         GROUP BY tv.uf_id
     )
     ------------------------------------------------------------------
-    -- 7) Armar prorrateo completo y volcarlo a #Prorrateo
+    -- 7) Armar prorrateo completo -> #Prorrateo
     ------------------------------------------------------------------
     SELECT
         u.uf_id                                                    AS Uf,
@@ -326,15 +348,206 @@ BEGIN
     ORDER BY u.uf_id;
 
     ------------------------------------------------------------------
-    -- 8) Devolver resultado
+    -- 8) ARCHIVO 1: items 1 a 6
     ------------------------------------------------------------------
+    IF OBJECT_ID('tempdb..#Archivo1') IS NOT NULL
+        DROP TABLE #Archivo1;
+
+    CREATE TABLE #Archivo1(
+        tipo_registro    VARCHAR(30),    -- qué item es
+        consorcio_id     INT,
+        consorcio_nombre VARCHAR(200),
+        periodo          DATE,
+        detalle          VARCHAR(400),
+        importe          DECIMAL(12,2) NULL,
+        uf_id            INT           NULL,
+        uf               VARCHAR(30)   NULL,
+        propietario      VARCHAR(200)  NULL,
+        saldo_deudor     DECIMAL(12,2) NULL
+    );
+
+    DECLARE @consorcio_nombre VARCHAR(200);
+
+    SELECT @consorcio_nombre = c.nombre
+    FROM prod.Consorcio c
+    WHERE c.consorcio_id = @consorcio_id;
+
+    -- 8.1 ENCABEZADO (item 1)
+    INSERT INTO #Archivo1(tipo_registro, consorcio_id, consorcio_nombre, periodo, detalle)
+    SELECT
+        'ENCABEZADO',
+        c.consorcio_id,
+        c.nombre,
+        @periodo,
+        CONCAT('Dirección: ', c.direccion)
+    FROM prod.Consorcio c
+    WHERE c.consorcio_id = @consorcio_id;
+
+
+    -- 8.2 FORMA DE PAGO Y VENCIMIENTOS (item 2)
+    INSERT INTO #Archivo1(tipo_registro, consorcio_id, consorcio_nombre, periodo, detalle)
+    VALUES(
+        'FORMA_PAGO',
+        @consorcio_id,
+        @consorcio_nombre,
+        @periodo,
+        CONCAT(
+            'Transferencia/depósito. Vto1: ',
+            CONVERT(char(10), @venc1, 120),
+            ' - Vto2: ',
+            CONVERT(char(10), @venc2, 120)
+        )
+    );
+
+    -- 8.3 PROPIETARIOS CON SALDO DEUDOR (item 3)
+    INSERT INTO #Archivo1(
+        tipo_registro, consorcio_id, consorcio_nombre, periodo,
+        uf_id, uf, propietario, saldo_deudor
+    )
+    SELECT
+        'PROPIETARIO_DEUDOR',
+        @consorcio_id,
+        @consorcio_nombre,
+        @periodo,
+        p.Uf,
+        p.PisoDepto,
+        p.Propietario,
+        p.Deuda
+    FROM #Prorrateo p
+    WHERE p.Deuda > 0.00;
+
+    -- 8.4 LISTADO DE GASTOS ORDINARIOS (item 4)
+    INSERT INTO #Archivo1(
+        tipo_registro, consorcio_id, consorcio_nombre, periodo,
+        detalle, importe
+    )
+    SELECT
+        'GASTO_ORDINARIO',
+        @consorcio_id,
+        @consorcio_nombre,
+        @periodo,
+        CONCAT(
+            'Proveedor: ', pr.nombre,
+            ' - Tipo: ', o.tipo_gasto_ordinario,
+            CASE WHEN o.nro_factura IS NOT NULL
+                 THEN ' - Factura: ' + o.nro_factura
+                 ELSE '' END
+        ),
+        o.importe
+    FROM prod.Ordinarios o
+    JOIN prod.ProveedorConsorcio pc
+      ON pc.pc_id = o.pc_id
+    JOIN prod.Proveedor pr
+      ON pr.proveedor_id = pc.proveedor_id
+    WHERE o.expensa_id = @expensa_id
+      AND o.borrado    = 0
+      AND pc.borrado   = 0
+      AND pr.borrado   = 0;
+
+    -- 8.5 LISTADO DE GASTOS EXTRAORDINARIOS (item 5)
+    INSERT INTO #Archivo1(
+        tipo_registro, consorcio_id, consorcio_nombre, periodo,
+        detalle, importe
+    )
+    SELECT
+        'GASTO_EXTRAORDINARIO',
+        @consorcio_id,
+        @consorcio_nombre,
+        @periodo,
+        CONCAT(
+            x.categoria,
+            ' - cuota ',
+            CAST(x.cuota_actual   AS VARCHAR(5)), '/',
+            CAST(x.total_cuotas  AS VARCHAR(5))
+        ),
+        x.valor_cuota_actual
+    FROM prod.Extraordinarios x
+    WHERE x.expensa_id = @expensa_id
+      AND x.borrado    = 0;
+
+    ------------------------------------------------------------------
+    -- 8.6 COMPOSICIÓN ESTADO FINANCIERO (item 6)
+    ------------------------------------------------------------------
+    DECLARE
+        @saldo_anterior     DECIMAL(12,2) = 0.00,  -- si tenés cuenta bancaria, acá la traés
+        @ing_termino        DECIMAL(12,2),
+        @ing_adeudadas      DECIMAL(12,2),
+        @ing_adelantadas    DECIMAL(12,2),
+        @egresos_mes        DECIMAL(12,2),
+        @saldo_cierre       DECIMAL(12,2);
+
+    ;WITH PagosTodo AS (
+        SELECT
+            p.importe,
+            p.fecha,
+            e.periodo
+        FROM prod.Pago p
+        JOIN prod.Expensa e
+          ON e.expensa_id = p.expensa_id
+        WHERE e.consorcio_id = @consorcio_id
+          AND p.borrado      = 0
+          AND p.estado IN ('APLICADO','ASOCIADO')
+    )
+    SELECT
+        @ing_termino = ISNULL(SUM(CASE
+                          WHEN periodo = @periodo AND fecha <= @venc1
+                          THEN importe ELSE 0 END),0),
+        @ing_adeudadas = ISNULL(SUM(CASE
+                          WHEN periodo < @periodo
+                          THEN importe ELSE 0 END),0),
+        @ing_adelantadas = ISNULL(SUM(CASE
+                          WHEN periodo > @periodo
+                          THEN importe ELSE 0 END),0)
+    FROM PagosTodo;
+
+    SET @egresos_mes  = ISNULL(@total_ordinarios_cur,0) + ISNULL(@total_extra_cur,0);
+    SET @saldo_cierre = @saldo_anterior
+                        + @ing_termino
+                        + @ing_adeudadas
+                        + @ing_adelantadas
+                        - @egresos_mes;
+
+    INSERT INTO #Archivo1(
+        tipo_registro, consorcio_id, consorcio_nombre, periodo, detalle, importe
+    )
+    VALUES
+        ('EF_SALDO_ANT',  @consorcio_id, @consorcio_nombre, @periodo, 'Saldo anterior',          @saldo_anterior),
+        ('EF_ING_TERM',   @consorcio_id, @consorcio_nombre, @periodo, 'Ingresos en término',     @ing_termino),
+        ('EF_ING_ADEUD',  @consorcio_id, @consorcio_nombre, @periodo, 'Ingresos expensas adeud', @ing_adeudadas),
+        ('EF_ING_ADEL',   @consorcio_id, @consorcio_nombre, @periodo, 'Ingresos expensas adel',  @ing_adelantadas),
+        ('EF_EGRESOS',    @consorcio_id, @consorcio_nombre, @periodo, 'Egresos del mes',         @egresos_mes),
+        ('EF_SALDO_CIER', @consorcio_id, @consorcio_nombre, @periodo, 'Saldo al cierre',         @saldo_cierre);
+
+    ------------------------------------------------------------------
+    -- 9) Devolver resultados para CSVs
+    ------------------------------------------------------------------
+
+    -- ARCHIVO 1: información items 1 a 6
+    SELECT
+        tipo_registro,
+        consorcio_id,
+        consorcio_nombre,
+        periodo,
+        detalle,
+        importe,
+        uf_id,
+        uf,
+        propietario,
+        saldo_deudor
+    FROM #Archivo1
+    ORDER BY
+        tipo_registro,
+        uf_id,
+        detalle;
+
+    -- ARCHIVO 2: ESTADO DE CUENTAS Y PRORRATEO (item 7)
     SELECT *
     FROM #Prorrateo
     ORDER BY Uf;
 
     ------------------------------------------------------------------
-    -- 9) Actualizar total de la EXPENSA
-    --    Sólo cargos del período (ord + extra + intereses)
+    -- 10) Actualizar total de la EXPENSA
+    --      (cargos del período: ordinarios + extraordinarios + mora)
     ------------------------------------------------------------------
     UPDATE e
        SET e.total = (
@@ -347,50 +560,50 @@ BEGIN
        )
     FROM prod.Expensa e
     WHERE e.expensa_id = @expensa_id;
+
 END;
 GO
 
 
-
 EXEC prod.sp_GenerarExpensaYProrrateo 
      @consorcio_id = 1, 
-     @anio = 2024, 
-     @mes  = 12;
+     @anio = 2025, 
+     @mes  = 06;
 
 -- 1) Ver cuántas expensas tiene ese consorcio y sus períodos
-SELECT expensa_id, periodo
-FROM prod.Expensa
-WHERE consorcio_id = 97
-ORDER BY periodo;
+--SELECT expensa_id, periodo
+--FROM prod.Expensa
+--WHERE consorcio_id = 97
+--ORDER BY periodo;
 
-;WITH M2PorUF AS (
-    SELECT
-        UF.uf_id,
-        UF.consorcio_id,
-        UF.cant_m2 
-          + ISNULL(SUM(UA.m2_accesorio), 0) AS m2_total_uf,
-        UF.coeficiente
-    FROM prod.UnidadFuncional UF
-    LEFT JOIN prod.UnidadAccesoria UA
-        ON UA.uf_id = UF.uf_id
-    -- WHERE UF.borrado = 0  -- si usás borrado lógico
-    GROUP BY
-        UF.uf_id,
-        UF.consorcio_id,
-        UF.cant_m2,
-        UF.coeficiente
-)
-SELECT
-    C.consorcio_id,
-    C.cant_m2_total,
-    SUM(M.m2_total_uf)      AS m2_usados,
-    SUM(M.coeficiente)      AS coef_total
-FROM prod.Consorcio C
-JOIN M2PorUF M
-    ON C.consorcio_id = M.consorcio_id
-GROUP BY
-    C.consorcio_id,
-    C.cant_m2_total;
+--;WITH M2PorUF AS (
+--    SELECT
+--        UF.uf_id,
+--        UF.consorcio_id,
+--        UF.cant_m2 
+--          + ISNULL(SUM(UA.m2_accesorio), 0) AS m2_total_uf,
+--        UF.coeficiente
+--    FROM prod.UnidadFuncional UF
+--    LEFT JOIN prod.UnidadAccesoria UA
+--        ON UA.uf_id = UF.uf_id
+--    -- WHERE UF.borrado = 0  -- si usás borrado lógico
+--    GROUP BY
+--        UF.uf_id,
+--        UF.consorcio_id,
+--        UF.cant_m2,
+--        UF.coeficiente
+--)
+--SELECT
+--    C.consorcio_id,
+--    C.cant_m2_total,
+--    SUM(M.m2_total_uf)      AS m2_usados,
+--    SUM(M.coeficiente)      AS coef_total
+--FROM prod.Consorcio C
+--JOIN M2PorUF M
+--    ON C.consorcio_id = M.consorcio_id
+--GROUP BY
+--    C.consorcio_id,
+--    C.cant_m2_total;
 
 
 
@@ -405,15 +618,15 @@ GROUP BY
 --         @cbu_cvu_origen  = '000000000000130811491';
 
 ---- 2) Ver pagos de ese consorcio y si son anteriores al período que estás prorrateando
-SELECT p.*
-FROM prod.Pago p
-JOIN prod.Expensa e ON e.expensa_id = p.expensa_id
-WHERE e.consorcio_id = 3
-  AND p.estado IN ('APLICADO','ASOCIADO')
-ORDER BY e.periodo, p.fecha;
+--SELECT p.*
+--FROM prod.Pago p
+--JOIN prod.Expensa e ON e.expensa_id = p.expensa_id
+--WHERE e.consorcio_id = 3
+--  AND p.estado IN ('APLICADO','ASOCIADO')
+--ORDER BY e.periodo, p.fecha;
 
-SELECT C.consorcio_id, C.nombre, UF.piso, UF.depto 
-FROM prod.Consorcio C 
-JOIN prod.UnidadFuncional UF 
-ON C.consorcio_id = UF.consorcio_id
-ORDER BY C.consorcio_id, UF.piso, UF.depto
+--SELECT C.consorcio_id, C.nombre, UF.piso, UF.depto 
+--FROM prod.Consorcio C 
+--JOIN prod.UnidadFuncional UF 
+--ON C.consorcio_id = UF.consorcio_id
+--ORDER BY C.consorcio_id, UF.piso, UF.depto

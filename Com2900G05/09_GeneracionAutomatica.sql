@@ -1,7 +1,7 @@
-USE Com2900G05;
+USE COM2900G05;
 GO
 /* =========================================================
-   CONSORCIOS ALEATORIOS (INCREMENTAL EN BASE A ID)
+   1) CONSORCIOS ALEATORIOS (INCREMENTAL EN BASE A ID)
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarConsorciosAleatorios','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarConsorciosAleatorios;
@@ -13,9 +13,9 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE 
-        @maxId INT,
-        @i     INT,
-        @fin   INT,
+        @maxId         INT,
+        @i             INT,
+        @fin           INT,
         @nombre        VARCHAR(50),
         @direccion     VARCHAR(200),
         @cant_unidades INT,
@@ -29,11 +29,20 @@ BEGIN
 
     WHILE @i <= @fin
     BEGIN
-        SET @nombre        = 'Consorcio ' + CAST(@i AS VARCHAR(10));
-        SET @direccion     = 'Calle ' + CHAR(65 + ABS(CHECKSUM(NEWID())) % 26)
-                             + ' ' + CAST(ABS(CHECKSUM(NEWID())) % 400 + 1 AS VARCHAR(4));
-        SET @cant_unidades = ABS(CHECKSUM(NEWID())) % 40 + 5;   -- 5..44
-        SET @cant_m2_total = @cant_unidades * (ABS(CHECKSUM(NEWID())) % 50 + 30);
+        SET @nombre = 'Consorcio ' + CAST(@i AS VARCHAR(10));
+
+        SET @direccion = 'Calle ' 
+                         + CHAR(65 + ABS(CHECKSUM(NEWID())) % 26)
+                         + ' '
+                         + CAST(ABS(CHECKSUM(NEWID())) % 400 + 1 AS VARCHAR(4));
+
+        -- Capacidad razonable de UF por consorcio: 8..40
+        SET @cant_unidades = ABS(CHECKSUM(NEWID())) % 33 + 8;
+
+        -- m2 totales: 40..90 m2 promedio por unidad
+        DECLARE @m2_promedio INT;
+        SET @m2_promedio  = ABS(CHECKSUM(NEWID())) % 51 + 40; -- 40..90
+        SET @cant_m2_total = @cant_unidades * @m2_promedio;
 
         EXEC prod.sp_AltaConsorcio
              @nombre,
@@ -47,7 +56,7 @@ END;
 GO
 
 /* =========================================================
-   PERSONAS ALEATORIAS (INCREMENTAL EN BASE A ID)
+   2) PERSONAS ALEATORIAS (INCREMENTAL EN BASE A ID)
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarPersonasAleatorias','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarPersonasAleatorias;
@@ -59,15 +68,15 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE 
-        @maxId INT,
-        @i     INT,
-        @fin   INT,
-        @nombre    VARCHAR(50),
-        @apellido  VARCHAR(50),
-        @email     VARCHAR(70),
-        @dni       INT,
-        @telefono  INT,
-        @cbu_cvu   CHAR(22),
+        @maxId    INT,
+        @i        INT,
+        @fin      INT,
+        @nombre   VARCHAR(50),
+        @apellido VARCHAR(50),
+        @email    VARCHAR(70),
+        @dni      INT,
+        @telefono INT,
+        @cbu_cvu  CHAR(22),
         @inquilino INT;
 
     SELECT @maxId = ISNULL(MAX(persona_id),0)
@@ -88,14 +97,19 @@ BEGIN
                 ('Fernandez'),('Gonzalez'),('Martinez'),('Romero')
             ) AS A(v) ORDER BY NEWID());
 
-        SET @dni       = 20000000 + (ABS(CHECKSUM(NEWID())) % 40000000);
-        SET @telefono  = ABS(CHECKSUM(NEWID())) % 900000000 + 100000000;
-        SET @email     = LOWER(@nombre + '.' + @apellido)
-                         + CAST(@i AS VARCHAR(10)) + '@mail.com';
+        SET @dni      = 20000000 + (ABS(CHECKSUM(NEWID())) % 40000000);
+        SET @telefono = ABS(CHECKSUM(NEWID())) % 900000000 + 100000000;
 
-        SET @cbu_cvu = RIGHT('0000000000000000000000' +
-                             CAST(ABS(CHECKSUM(NEWID())) % 100000000000000000000000 AS VARCHAR(24)), 22);
+        SET @email = LOWER(@nombre + '.' + @apellido)
+                     + CAST(@i AS VARCHAR(10)) + '@mail.com';
 
+        -- CBU de 22 dígitos
+        SET @cbu_cvu = RIGHT(
+                          REPLICATE('0',22) 
+                          + CAST(ABS(CHECKSUM(NEWID())) % 100000000000000000000000 AS VARCHAR(24))
+                       ,22);
+
+        -- 0 = NO inquilino, 1 = inquilino
         SET @inquilino = ABS(CHECKSUM(NEWID())) % 2;
 
         EXEC prod.sp_AltaPersona
@@ -113,7 +127,7 @@ END;
 GO
 
 /* =========================================================
-   UF ALEATORIAS (RESPETA m2 / COEFICIENTES)
+   3) UF ALEATORIAS (RESPETA m2 Y cant_unidades)
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarUFAleatorias','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarUFAleatorias;
@@ -131,32 +145,43 @@ BEGIN
     END;
 
     DECLARE 
-        @creadas       INT,
-        @intentos      INT,
-        @max_intentos  INT,
-        @consorcio_id  INT,
-        @piso          CHAR(2),
-        @depto         CHAR(1),
-        @cant_m2       INT,
-        @cant_m2_total INT,
-        @m2_usados     INT,
-        @m2_disponible INT,
-        @max_m2_uf     INT;
-
-    SET @creadas      = 0;
-    SET @intentos     = 0;
-    SET @max_intentos = @cantidad * 20;
+        @creadas        INT = 0,
+        @intentos       INT = 0,
+        @max_intentos   INT = @cantidad * 20,
+        @consorcio_id   INT,
+        @piso           CHAR(2),
+        @depto          CHAR(1),
+        @cant_m2        INT,
+        @cant_m2_total  INT,
+        @m2_usados      INT,
+        @m2_disponible  INT,
+        @max_m2_uf      INT,
+        @cant_unidades  INT,
+        @cant_uf_actual INT;
 
     WHILE @creadas < @cantidad AND @intentos < @max_intentos
     BEGIN
         SET @intentos += 1;
 
-        SELECT TOP 1 @consorcio_id = consorcio_id
+        -- consorcio aleatorio
+        SELECT TOP 1 
+               @consorcio_id  = consorcio_id,
+               @cant_unidades = cant_unidades
         FROM prod.Consorcio
         WHERE borrado = 0
         ORDER BY NEWID();
 
-        -- m2 usados = SUM(ISNULL(uf.cant_m2,0) + ISNULL(ua.m2_accesorio,0))
+        -- cantidad de UF ya creadas en el consorcio
+        SELECT @cant_uf_actual = COUNT(*)
+        FROM prod.UnidadFuncional
+        WHERE consorcio_id = @consorcio_id
+          AND borrado      = 0;
+
+        -- Si ya alcanzó la capacidad de unidades, salteamos
+        IF @cant_uf_actual >= @cant_unidades
+            CONTINUE;
+
+        -- m2 usados: UF + UA
         SELECT
             @cant_m2_total = c.cant_m2_total,
             @m2_usados     = ISNULL(
@@ -176,16 +201,20 @@ BEGIN
 
         SET @m2_disponible = @cant_m2_total - ISNULL(@m2_usados,0);
 
+        -- Si no queda superficie mínima para una UF decente, salteamos
         IF @m2_disponible < 30
             CONTINUE;
 
+        -- piso: PB o 01..15
         IF ABS(CHECKSUM(NEWID())) % 5 = 0
             SET @piso = 'PB';
         ELSE
             SET @piso = RIGHT('00' + CAST(ABS(CHECKSUM(NEWID())) % 15 + 1 AS VARCHAR(2)),2);
 
+        -- depto: A..F
         SET @depto = CHAR(65 + ABS(CHECKSUM(NEWID())) % 6);
 
+        -- evitar duplicar ubicación
         IF EXISTS (
             SELECT 1
             FROM prod.UnidadFuncional
@@ -196,6 +225,7 @@ BEGIN
         )
             CONTINUE;
 
+        -- máximo m2 para la UF (sin superar 109 m2)
         SET @max_m2_uf = CASE WHEN @m2_disponible > 109 THEN 109 ELSE @m2_disponible END;
 
         IF @max_m2_uf < 30
@@ -208,20 +238,20 @@ BEGIN
              @piso,
              @depto,
              @cant_m2,
-             0;  -- coeficiente se recalcula
+             0;  -- coeficiente se recalcula en el SP de negocio
 
         SET @creadas += 1;
     END
 
     IF @creadas < @cantidad
     BEGIN
-        RAISERROR('No se pudo generar la cantidad solicitada de UF sin exceder los m2 de los consorcios.',16,1);
+        RAISERROR('No se pudo generar la cantidad solicitada de UF sin exceder los m2 o la capacidad de unidades de los consorcios.',16,1);
     END
 END;
 GO
 
 /* =========================================================
-   UA ALEATORIAS (RESPETA m2 Y TIPOS)
+   4) UA ALEATORIAS (RESPETA m2 Y TIPOS)
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarUAAleatorias','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarUAAleatorias;
@@ -239,9 +269,9 @@ BEGIN
     END;
 
     DECLARE 
-        @creadas          INT,
-        @intentos         INT,
-        @max_intentos     INT,
+        @creadas          INT = 0,
+        @intentos         INT = 0,
+        @max_intentos     INT = @cantidad * 20,
         @uf_id            INT,
         @consorcio_id     INT,
         @cant_m2_total    INT,
@@ -250,10 +280,6 @@ BEGIN
         @m2_accesorio     INT,
         @max_m2_ua        INT,
         @tipo_accesorio   VARCHAR(20);
-
-    SET @creadas      = 0;
-    SET @intentos     = 0;
-    SET @max_intentos = @cantidad * 20;
 
     WHILE @creadas < @cantidad AND @intentos < @max_intentos
     BEGIN
@@ -292,6 +318,7 @@ BEGIN
         ELSE
             SET @tipo_accesorio = 'COCHERA';
 
+        -- una baulera y una cochera como máximo por UF
         IF EXISTS (
             SELECT 1
             FROM prod.UnidadAccesoria
@@ -339,7 +366,7 @@ END;
 GO
 
 /* =========================================================
-   EXPENSAS ALEATORIAS 
+   5) EXPENSAS ALEATORIAS 
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarExpensasAleatorias','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarExpensasAleatorias;
@@ -347,15 +374,12 @@ GO
 
 CREATE PROCEDURE prod.sp_CargarExpensasAleatorias
     @cantidad   INT,
-    @anio_desde INT = NULL,   -- opcional: rango de años para sortear
+    @anio_desde INT = NULL,
     @anio_hasta INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    ------------------------------------------------------------------
-    -- 0) Validaciones básicas / defaults de años
-    ------------------------------------------------------------------
     IF NOT EXISTS (SELECT 1 FROM prod.Consorcio WHERE borrado = 0)
     BEGIN
         RAISERROR('No hay consorcios activos.',16,1);
@@ -371,9 +395,6 @@ BEGIN
         RETURN;
     END;
 
-    ------------------------------------------------------------------
-    -- 1) Variables de trabajo
-    ------------------------------------------------------------------
     DECLARE
         @creadas      INT = 0,
         @intentos     INT = 0,
@@ -381,29 +402,28 @@ BEGIN
         @consorcio_id INT,
         @anio         INT,
         @mes          INT,
-        @total        DECIMAL(12,2);
+        @total        DECIMAL(12,2),
+        @dias_vto1    INT,
+        @dias_vto2    INT;
 
-    ------------------------------------------------------------------
-    -- 2) Bucle de creación de expensas
-    ------------------------------------------------------------------
+    -- podés fijarlos o sortearlos un poco, pero siempre que vto2 >= vto1
+    SET @dias_vto1 = 10;   -- 10 días después del 5° hábil
+    SET @dias_vto2 = 20;   -- 20 días después del 5° hábil
+
     WHILE @creadas < @cantidad AND @intentos < @max_intentos
     BEGIN
         SET @intentos += 1;
 
-        -- Consorcio activo al azar
         SELECT TOP 1 @consorcio_id = consorcio_id
         FROM prod.Consorcio
         WHERE borrado = 0
         ORDER BY NEWID();
 
-        -- Año aleatorio entre @anio_desde y @anio_hasta
         SET @anio = @anio_desde 
                     + ABS(CHECKSUM(NEWID())) % (@anio_hasta - @anio_desde + 1);
 
-        -- Mes aleatorio 1..12
-        SET @mes = ABS(CHECKSUM(NEWID())) % 12 + 1;
+        SET @mes  = ABS(CHECKSUM(NEWID())) % 12 + 1;
 
-        -- Total aleatorio
         SET @total = CAST(ABS(CHECKSUM(NEWID())) % 150000 + 5000 AS DECIMAL(12,2));
 
         BEGIN TRY
@@ -411,25 +431,26 @@ BEGIN
                  @consorcio_id = @consorcio_id,
                  @anio         = @anio,
                  @mes          = @mes,
-                 @total        = @total;
+                 @total        = @total,
+                 @dias_vto1    = @dias_vto1,
+                 @dias_vto2    = @dias_vto2;
 
             SET @creadas += 1;
         END TRY
         BEGIN CATCH
-            -- Si choca por expensa ya existente en ese consorcio+período u otro error,
-            -- lo ignoramos y seguimos intentando con otra combinación
-            -- (NO hacemos RAISERROR acá para no cortar el generador).
+            -- conflictos de período/consorcio u otros errores: ignorar e intentar otra combinación
         END CATCH;
     END
 
     IF @creadas < @cantidad
     BEGIN
-        RAISERROR('No se pudo generar la cantidad solicitada de expensas (muchos conflictos de período/consorcio).',16,1);
+        RAISERROR('No se pudo generar la cantidad solicitada de expensas (conflictos de período/consorcio u otros errores).',16,1);
     END
 END;
 GO
+
 /* =========================================================
-   PROVEEDORES ALEATORIOS (INCREMENTAL)
+   6) PROVEEDORES ALEATORIOS (INCREMENTAL)
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarProveedoresAleatorios','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarProveedoresAleatorios;
@@ -464,7 +485,7 @@ END;
 GO
 
 /* =========================================================
-   PROVEEDOR-CONSORCIO ALEATORIOS (INCREMENTAL)
+   7) PROVEEDOR-CONSORCIO ALEATORIOS 
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarProveedorConsorcioAleatorios','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarProveedorConsorcioAleatorios;
@@ -483,22 +504,18 @@ BEGIN
     END;
 
     DECLARE
-        @maxId       INT,
-        @i           INT,
-        @fin         INT,
-        @proveedor_id INT,
-        @consorcio_id INT,
-        @tipo_gasto   VARCHAR(80),
-        @referencia   VARCHAR(80);
+        @creadas       INT = 0,
+        @intentos      INT = 0,
+        @max_intentos  INT = @cantidad * 20,
+        @proveedor_id  INT,
+        @consorcio_id  INT,
+        @tipo_gasto    VARCHAR(80),
+        @referencia    VARCHAR(80);
 
-    SELECT @maxId = ISNULL(MAX(pc_id),0)
-    FROM prod.ProveedorConsorcio;
-
-    SET @i   = @maxId + 1;
-    SET @fin = @i + @cantidad - 1;
-
-    WHILE @i <= @fin
+    WHILE @creadas < @cantidad AND @intentos < @max_intentos
     BEGIN
+        SET @intentos += 1;
+
         SELECT TOP 1 @proveedor_id = proveedor_id
         FROM prod.Proveedor
         WHERE borrado = 0
@@ -514,37 +531,43 @@ BEGIN
                             ('HONORARIOS'),('MANTENIMIENTO')
                           ) AS T(v) ORDER BY NEWID());
 
-        SET @referencia = 'Ref ' + CAST(@i AS VARCHAR(10));
+        SET @referencia = 'Ref ' + CAST(@creadas + 1 AS VARCHAR(10));
 
-        EXEC prod.sp_AltaProveedorConsorcio
-             @proveedor_id,
-             @consorcio_id,
-             @tipo_gasto,
-             @referencia;
+        BEGIN TRY
+            EXEC prod.sp_AltaProveedorConsorcio
+                 @proveedor_id,
+                 @consorcio_id,
+                 @tipo_gasto,
+                 @referencia;
 
-        SET @i += 1;
+            SET @creadas += 1;
+        END TRY
+        BEGIN CATCH
+            -- choques con UQ_ProvCons, etc -> se ignoran
+        END CATCH;
+    END
+
+    IF @creadas < @cantidad
+    BEGIN
+        RAISERROR('No se pudo generar la cantidad solicitada de proveedor-consorcio (conflictos de unicidad).',16,1);
     END
 END;
 GO
 
 /* =========================================================
-   TITULARIDADES ALEATORIAS (INCREMENTAL)
+   8) TITULARIDADES ALEATORIAS (USA Persona.inquilino)
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarTitularidadesAleatorias','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarTitularidadesAleatorias;
 GO
-
 CREATE PROCEDURE prod.sp_CargarTitularidadesAleatorias
     @cantidad     INT,
-    @fecha_desde  DATE = NULL,   -- rango para fechas de titularidad
+    @fecha_desde  DATE = NULL,
     @fecha_hasta  DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -------------------------------------------------------
-    -- Rango de fechas por defecto: últimos 2 años
-    -------------------------------------------------------
     IF @fecha_hasta IS NULL
         SET @fecha_hasta = CAST(GETDATE() AS DATE);
 
@@ -565,26 +588,25 @@ BEGIN
     END;
 
     DECLARE
-        @creadas      INT = 0,
-        @intentos     INT = 0,
-        @max_intentos INT,
-        @persona_id   INT,
-        @uf_id        INT,
+        @creadas          INT = 0,
+        @intentos         INT = 0,
+        @max_intentos     INT,
+        @persona_id       INT,
+        @uf_id            INT,
         @tipo_titularidad VARCHAR(15),
-        @fecha_tit    DATE,
-        @rango_dias   INT;
+        @fecha_tit        DATE,
+        @rango_dias       INT,
+        @es_inquilino     INT;
 
     SET @rango_dias   = DATEDIFF(DAY, @fecha_desde, @fecha_hasta);
-    SET @max_intentos = @cantidad * 20;  -- para evitar bucles infinitos
+    SET @max_intentos = @cantidad * 50;  
 
     WHILE @creadas < @cantidad AND @intentos < @max_intentos
     BEGIN
         SET @intentos += 1;
 
-        ---------------------------------------------------
-        -- Elegir persona y UF activas al azar
-        ---------------------------------------------------
-        SELECT TOP 1 @persona_id = persona_id
+        -- persona y UF activas al azar
+        SELECT TOP 1 @persona_id = persona_id, @es_inquilino = inquilino
         FROM prod.Persona
         WHERE borrado = 0
         ORDER BY NEWID();
@@ -597,25 +619,17 @@ BEGIN
         IF @persona_id IS NULL OR @uf_id IS NULL
             CONTINUE;
 
-        ---------------------------------------------------
-        -- Tipo de titularidad random
-        ---------------------------------------------------
-        IF ABS(CHECKSUM(NEWID())) % 2 = 0
-            SET @tipo_titularidad = 'PROPIETARIO';
-        ELSE
+        -- Tipo coherente con flag Persona.inquilino
+        IF @es_inquilino = 1
             SET @tipo_titularidad = 'INQUILINO';
+        ELSE
+            SET @tipo_titularidad = 'PROPIETARIO';
 
-        ---------------------------------------------------
-        -- Fecha_desde aleatoria dentro del rango
-        ---------------------------------------------------
+        -- Fecha_desde aleatoria
         SET @fecha_tit = DATEADD(DAY,
                                  ABS(CHECKSUM(NEWID())) % (@rango_dias + 1),
                                  @fecha_desde);
 
-        ---------------------------------------------------
-        -- Alta usando el SP de negocio
-        -- (si da error por duplicado, lo ignoramos y seguimos)
-        ---------------------------------------------------
         BEGIN TRY
             EXEC prod.sp_AltaTitularidad
                  @persona_id       = @persona_id,
@@ -626,20 +640,19 @@ BEGIN
             SET @creadas += 1;
         END TRY
         BEGIN CATCH
-            -- No relanzamos el error para poder seguir generando
-            -- PRINT 'Error Titularidad: ' + ERROR_MESSAGE();  -- opcional
+            -- conflictos por UQ/validaciones internas -> se ignoran
         END CATCH;
-    END;
+    END
 
     IF @creadas < @cantidad
     BEGIN
-        RAISERROR('No se pudo generar la cantidad solicitada de titularidades (probablemente por muchas combinaciones duplicadas).',16,1);
+        RAISERROR('No se pudo generar la cantidad solicitada de titularidades (muchas combinaciones inválidas o duplicadas).',16,1);
     END
 END;
 GO
 
 /* =========================================================
-   PAGOS ALEATORIOS (INCREMENTAL)
+   9) PAGOS ALEATORIOS (COHERENTES CON TITULARIDAD)
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarPagosAleatorios','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarPagosAleatorios;
@@ -661,59 +674,88 @@ BEGIN
     IF @fecha_desde IS NULL SET @fecha_desde = DATEADD(MONTH,-6,CAST(GETDATE() AS DATE));
     IF @fecha_hasta IS NULL SET @fecha_hasta = CAST(GETDATE() AS DATE);
 
+    IF @fecha_desde > @fecha_hasta
+    BEGIN
+        RAISERROR('Rango de fechas inválido en sp_CargarPagosAleatorios.',16,1);
+        RETURN;
+    END;
+
     DECLARE
-        @maxId       INT,
-        @i           INT,
-        @fin         INT,
-        @rango_dias  INT,
-        @expensa_id  INT,
-        @fecha       DATE,
-        @importe     DECIMAL(12,2),
-        @nro_trans   VARCHAR(100),
-        @estado      VARCHAR(15),
+        @creadas       INT = 0,
+        @intentos      INT = 0,
+        @max_intentos  INT = @cantidad * 50,
+        @rango_dias    INT,
+        @expensa_id    INT,
+        @consorcio_id  INT,
+        @fecha         DATE,
+        @importe       DECIMAL(12,2),
+        @nro_trans     VARCHAR(100),
+        @estado        VARCHAR(15),
         @cbu_cvu_origen CHAR(22);
 
-    SELECT @maxId = ISNULL(MAX(pago_id),0)
-    FROM prod.Pago;
-
-    SET @i          = @maxId + 1;
-    SET @fin        = @i + @cantidad - 1;
     SET @rango_dias = DATEDIFF(DAY, @fecha_desde, @fecha_hasta);
 
-    WHILE @i <= @fin
+    WHILE @creadas < @cantidad AND @intentos < @max_intentos
     BEGIN
-        SELECT TOP 1 @expensa_id = expensa_id
-        FROM prod.Expensa WHERE borrado = 0 ORDER BY NEWID();
+        SET @intentos += 1;
+
+        -- expensa aleatoria
+        SELECT TOP 1 @expensa_id = expensa_id, @consorcio_id = consorcio_id
+        FROM prod.Expensa
+        WHERE borrado = 0
+        ORDER BY NEWID();
+
+        IF @expensa_id IS NULL
+            CONTINUE;
+
+        -- persona con titularidad en algún UF del consorcio de esa expensa
+        SELECT TOP 1 @cbu_cvu_origen = p.cbu_cvu
+        FROM prod.UnidadFuncional uf
+        JOIN prod.Titularidad t ON t.uf_id = uf.uf_id
+        JOIN prod.Persona p ON p.persona_id = t.persona_id
+        WHERE uf.consorcio_id = @consorcio_id
+          AND uf.borrado      = 0
+          AND p.borrado       = 0
+        ORDER BY NEWID();
+
+        IF @cbu_cvu_origen IS NULL
+            CONTINUE;
 
         SET @fecha   = DATEADD(DAY, ABS(CHECKSUM(NEWID())) % (@rango_dias+1), @fecha_desde);
         SET @importe = CAST(ABS(CHECKSUM(NEWID())) % 150000 + 1000 AS DECIMAL(12,2));
 
-        SET @nro_trans = 'TX-' + CAST(@i AS VARCHAR(10))
+        SET @nro_trans = 'TX-' + CAST(@creadas+1 AS VARCHAR(10))
                          + '-' + CAST(ABS(CHECKSUM(NEWID())) % 100000 AS VARCHAR(10));
 
         SET @estado = (SELECT TOP 1 v FROM (VALUES
-                          ('PENDIENTE'),('APLICADO'),
-                          ('RECHAZADO'),('ANULADO')
+                          ('PENDIENTE'),
+                          ('APLICADO'),
+                          ('RECHAZADO'),
+                          ('ANULADO'),
+                          ('ASOCIADO'),
+                          ('NO ASOCIADO')
                         ) AS E(v) ORDER BY NEWID());
 
-        SELECT @cbu_cvu_origen = cbu_cvu
-        FROM prod.Persona ORDER BY NEWID();
+        BEGIN TRY
+            EXEC prod.sp_AltaPago
+                 @expensa_id,
+                 @fecha,
+                 @importe,
+                 @nro_trans,
+                 @estado,
+                 @cbu_cvu_origen;
 
-        EXEC prod.sp_AltaPago
-             @expensa_id,
-             @fecha,
-             @importe,
-             @nro_trans,
-             @estado,
-             @cbu_cvu_origen;
-
-        SET @i += 1;
+            SET @creadas += 1;
+        END TRY
+        BEGIN CATCH
+            -- conflictos de negocio (sin titularidad vigente, etc.) -> se ignoran
+        END CATCH;
     END
 END;
 GO
 
 /* =========================================================
-   EXTRAORDINARIOS ALEATORIOS (INCREMENTAL)
+   10) EXTRAORDINARIOS ALEATORIOS 
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarExtraordinariosAleatorios','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarExtraordinariosAleatorios;
@@ -731,14 +773,14 @@ BEGIN
     END;
 
     DECLARE
-        @maxId             INT,
-        @i                 INT,
-        @fin               INT,
-        @expensa_id        INT,
-        @categoria         VARCHAR(50),
-        @total_cuotas      INT,
-        @cuota_actual      INT,
-        @importe_total     DECIMAL(12,2),
+        @maxId              INT,
+        @i                  INT,
+        @fin                INT,
+        @expensa_id         INT,
+        @categoria          VARCHAR(50),
+        @total_cuotas       INT,
+        @cuota_actual       INT,
+        @importe_total      DECIMAL(12,2),
         @valor_cuota_actual DECIMAL(12,2);
 
     SELECT @maxId = ISNULL(MAX(gasto_id_extra),0)
@@ -778,8 +820,9 @@ BEGIN
     END
 END;
 GO
+
 /* =========================================================
-   ORDINARIOS ALEATORIOS (INCREMENTAL)
+   11) ORDINARIOS ALEATORIOS 
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarOrdinariosAleatorios','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarOrdinariosAleatorios;
@@ -847,7 +890,7 @@ END;
 GO
 
 /* =========================================================
-   FACTURAS ALEATORIAS (INCREMENTAL)
+   12) FACTURAS ALEATORIAS 
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarFacturasAleatorias','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarFacturasAleatorias;
@@ -871,7 +914,7 @@ BEGIN
         @expensa_id    INT,
         @nro_comp      VARCHAR(20),
         @tipo          CHAR(1),
-        @cond_iva      CHAR(8),
+        @cond_iva      CHAR(20),
         @cae           CHAR(14),
         @fecha_emision DATE,
         @monto_total   DECIMAL(12,2),
@@ -895,7 +938,9 @@ BEGIN
                         + '-' + RIGHT('000000' + CAST(ABS(CHECKSUM(NEWID())) % 1000000 AS VARCHAR(6)),6);
 
         SET @tipo     = (SELECT TOP 1 v FROM (VALUES ('A'),('B'),('C')) AS T(v) ORDER BY NEWID());
-        SET @cond_iva = (SELECT TOP 1 v FROM (VALUES ('RI'),('EXENTO'),('CF')) AS T(v) ORDER BY NEWID());
+        SET @cond_iva = (SELECT TOP 1 v FROM (VALUES ('RESP. INSCRIPTO'),
+                                                     ('EXENTO'),
+                                                     ('CONSUMIDOR FINAL')) AS T(v) ORDER BY NEWID());
 
         SET @cae = RIGHT('00000000000000' +
                          CAST(ABS(CHECKSUM(NEWID())) % 100000000000000 AS VARCHAR(15)),14);
@@ -905,16 +950,21 @@ BEGIN
         SET @estado        = 'A';
         SET @saldo_anterior = 0.00;
 
-        EXEC prod.sp_AltaFactura
-             @expensa_id,
-             @nro_comp,
-             @tipo,
-             @cond_iva,
-             @cae,
-             @monto_total,
-             @fecha_emision,
-             @estado,
-             @saldo_anterior;
+        BEGIN TRY
+            EXEC prod.sp_AltaFactura
+                 @expensa_id,
+                 @nro_comp,
+                 @tipo,
+                 @cond_iva,
+                 @cae,
+                 @monto_total,
+                 @fecha_emision,
+                 @estado,
+                 @saldo_anterior;
+        END TRY
+        BEGIN CATCH
+            -- conflicto de nro_comprobante o CAE: se ignora este intento
+        END CATCH;
 
         SET @i += 1;
     END
@@ -922,7 +972,7 @@ END;
 GO
 
 /* =========================================================
-   MORAS ALEATORIAS (INCREMENTAL)
+   13) MORAS ALEATORIAS 
    ========================================================= */
 IF OBJECT_ID('prod.sp_CargarMorasAleatorias','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarMorasAleatorias;
@@ -940,9 +990,9 @@ BEGIN
     END;
 
     DECLARE
-        @maxId     INT,
-        @i         INT,
-        @fin       INT,
+        @maxId      INT,
+        @i          INT,
+        @fin        INT,
         @expensa_id INT,
         @fecha_mora DATE,
         @interes    DECIMAL(6,4),
@@ -974,7 +1024,7 @@ BEGIN
 END;
 GO
 
-PRINT '=== INICIO LOTE DE PRUEBAS - ALTAS ALEATORIAS (10 POR TABLA) ===';
+PRINT '=== INICIO LOTE DE PRUEBAS - ALTAS ALEATORIAS ===';
 
 DECLARE 
     @anio_desde   INT = 2024,
@@ -986,47 +1036,67 @@ DECLARE
 SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
 SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
 
---------------------------------------------------
--- 1) BASE: Consorcios, Personas, Proveedores
---------------------------------------------------
-PRINT '1) Cargar Consorcios...';
-EXEC prod.sp_CargarConsorciosAleatorios  @cantidad = 10;
-
 PRINT '2) Cargar Personas...';
-EXEC prod.sp_CargarPersonasAleatorias    @cantidad = 10;
+EXEC prod.sp_CargarPersonasAleatorias    @cantidad = 100;
+
+PRINT '8) Cargar Titularidades...';
+EXEC prod.sp_CargarTitularidadesAleatorias @cantidad = 100;
 
 PRINT '3) Cargar Proveedores...';
 EXEC prod.sp_CargarProveedoresAleatorios @cantidad = 10;
 
---------------------------------------------------
--- 2) UF y UA
---------------------------------------------------
-PRINT '4) Cargar Unidades Funcionales...';
-EXEC prod.sp_CargarUFAleatorias @cantidad = 1000;
-
-PRINT '5) Cargar Unidades Accesorias...';
-EXEC prod.sp_CargarUAAleatorias @cantidad = 10;
-
---------------------------------------------------
--- 3) Vínculo Proveedor-Consorcio
---------------------------------------------------
 PRINT '6) Cargar Proveedor-Consorcio...';
 EXEC prod.sp_CargarProveedorConsorcioAleatorios @cantidad = 10;
 
---------------------------------------------------
--- 4) Expensas
---------------------------------------------------
 PRINT '7) Cargar Expensas...';
 EXEC prod.sp_CargarExpensasAleatorias 
      @cantidad   = 10,
      @anio_desde = @anio_desde,
      @anio_hasta = @anio_hasta;
 
+PRINT '9) Cargar Pagos...';
+EXEC prod.sp_CargarPagosAleatorios 
+     @cantidad    = 100,
+     @fecha_desde = @fecha_desdeP,
+     @fecha_hasta = @fecha_hastaP;
+
+PRINT '10) Cargar Extraordinarios...';
+EXEC prod.sp_CargarExtraordinariosAleatorios @cantidad = 100;
+
+PRINT '11) Cargar Ordinarios...';
+EXEC prod.sp_CargarOrdinariosAleatorios @cantidad = 100;
+
+--------------------------------------------------
+-- 1) BASE: Consorcios, Personas, Proveedores
+--------------------------------------------------
+--PRINT '1) Cargar Consorcios...';
+--EXEC prod.sp_CargarConsorciosAleatorios  @cantidad = 10;
+
+
+
+----------------------------------------------------
+---- 2) UF y UA
+----------------------------------------------------
+--PRINT '4) Cargar Unidades Funcionales...';
+--EXEC prod.sp_CargarUFAleatorias @cantidad = 1000;
+
+--PRINT '5) Cargar Unidades Accesorias...';
+--EXEC prod.sp_CargarUAAleatorias @cantidad = 10;
+
+--------------------------------------------------
+-- 3) Vínculo Proveedor-Consorcio
+--------------------------------------------------
+
+
+--------------------------------------------------
+-- 4) Expensas
+--------------------------------------------------
+
+
 --------------------------------------------------
 -- 5) Titularidades
 --------------------------------------------------
-PRINT '8) Cargar Titularidades...';
-EXEC prod.sp_CargarTitularidadesAleatorias @cantidad = 10;
+
 
 --------------------------------------------------
 -- 6) Pagos, Extraordinarios, Ordinarios, Facturas, Moras
@@ -1040,23 +1110,13 @@ EXEC prod.sp_CargarTitularidadesAleatorias @cantidad = 10;
 -- Fechas para los pagos (desde 1/1/año_desde hasta 31/12/año_hasta)
 --SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
 --SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
-PRINT '9) Cargar Pagos...';
-EXEC prod.sp_CargarPagosAleatorios 
-     @cantidad    = 100,
-     @fecha_desde = @fecha_desdeP,
-     @fecha_hasta = @fecha_hastaP;
 
-PRINT '10) Cargar Extraordinarios...';
-EXEC prod.sp_CargarExtraordinariosAleatorios @cantidad = 10;
 
-PRINT '11) Cargar Ordinarios...';
-EXEC prod.sp_CargarOrdinariosAleatorios @cantidad = 10;
+--PRINT '12) Cargar Facturas...';
+--EXEC prod.sp_CargarFacturasAleatorias @cantidad = 10;
 
-PRINT '12) Cargar Facturas...';
-EXEC prod.sp_CargarFacturasAleatorias @cantidad = 10;
+--PRINT '13) Cargar Moras...';
+--EXEC prod.sp_CargarMorasAleatorias @cantidad = 10;
 
-PRINT '13) Cargar Moras...';
-EXEC prod.sp_CargarMorasAleatorias @cantidad = 10;
-
-PRINT '=== FIN LOTE DE PRUEBAS - ALTAS ALEATORIAS ===';
-GO
+--PRINT '=== FIN LOTE DE PRUEBAS - ALTAS ALEATORIAS ===';
+--GO

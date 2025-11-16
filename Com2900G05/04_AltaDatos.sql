@@ -196,7 +196,7 @@ BEGIN
         SET @uf_id = SCOPE_IDENTITY();
     END;
 
-    -- 5) m² totales UF+UA, sin warnings
+    -- 5) m2 totales UF+UA, sin warnings
     ;WITH UFData AS (
         SELECT
             uf.uf_id,
@@ -226,34 +226,43 @@ BEGIN
         RETURN;
     END;
 
-    -- 6) Recalcular coeficientes
+        -- 6) Recalcular coeficientes con suma 100.00
     ;WITH UFData AS (
         SELECT
             uf.uf_id,
             ISNULL(uf.cant_m2,0)
             + ISNULL(
-                SUM(
-                    CASE 
-                        WHEN ua.borrado = 0 THEN ISNULL(ua.m2_accesorio,0)
-                        ELSE 0
-                    END
-                ),0
-              ) AS m2_total_uf
+                SUM(CASE WHEN ua.borrado = 0 THEN ISNULL(ua.m2_accesorio,0) ELSE 0 END)
+              ,0
+            ) AS m2_total_uf
         FROM prod.UnidadFuncional uf
         LEFT JOIN prod.UnidadAccesoria ua
                ON ua.uf_id = uf.uf_id
         WHERE uf.consorcio_id = @consorcio_id
           AND uf.borrado      = 0
         GROUP BY uf.uf_id, uf.cant_m2
+    ),
+    CoefBase AS (
+        SELECT 
+            uf_id,
+            CAST(ROUND(100.0 * m2_total_uf / NULLIF(@cant_m2_total_con,0), 2) AS DECIMAL(5,2)) AS coef_calc,
+            ROW_NUMBER() OVER (ORDER BY m2_total_uf DESC, uf_id) AS rn
+        FROM UFData
+    ),
+    SumaCoef AS (
+        SELECT SUM(coef_calc) AS suma
+        FROM CoefBase
     )
     UPDATE uf
-       SET coeficiente = ROUND(
-                           100.0 * ISNULL(ufd.m2_total_uf,0)
-                           / NULLIF(@cant_m2_total_con,0)
-                         , 2)
+       SET coeficiente = CASE 
+                            WHEN cb.rn = 1 
+                                THEN cb.coef_calc + (100.00 - s.suma)
+                            ELSE cb.coef_calc
+                         END
     FROM prod.UnidadFuncional uf
-    JOIN UFData ufd
-      ON uf.uf_id = ufd.uf_id
+    JOIN CoefBase cb
+      ON uf.uf_id = cb.uf_id
+    CROSS JOIN SumaCoef s
     WHERE uf.consorcio_id = @consorcio_id
       AND uf.borrado      = 0;
 
@@ -345,7 +354,7 @@ BEGIN
         SET @ua_id = SCOPE_IDENTITY();
     END;
 
-    -- 5) m² totales UF+UA del consorcio
+    -- 5) m2 totales UF+UA del consorcio
     ;WITH UFData AS (
         SELECT
             uf.uf_id,
@@ -375,36 +384,46 @@ BEGIN
         RETURN;
     END;
 
-    -- 6) Recalcular coeficientes
+       -- 6) Recalcular coeficientes con suma 100.00
     ;WITH UFData AS (
         SELECT
             uf.uf_id,
             ISNULL(uf.cant_m2,0)
             + ISNULL(
-                SUM(
-                    CASE 
-                        WHEN ua.borrado = 0 THEN ISNULL(ua.m2_accesorio,0)
-                        ELSE 0
-                    END
-                ),0
-              ) AS m2_total_uf
+                SUM(CASE WHEN ua.borrado = 0 THEN ISNULL(ua.m2_accesorio,0) ELSE 0 END)
+              ,0
+            ) AS m2_total_uf
         FROM prod.UnidadFuncional uf
         LEFT JOIN prod.UnidadAccesoria ua
                ON ua.uf_id = uf.uf_id
         WHERE uf.consorcio_id = @consorcio_id
           AND uf.borrado      = 0
         GROUP BY uf.uf_id, uf.cant_m2
+    ),
+    CoefBase AS (
+        SELECT 
+            uf_id,
+            CAST(ROUND(100.0 * m2_total_uf / NULLIF(@cant_m2_total_con,0), 2) AS DECIMAL(5,2)) AS coef_calc,
+            ROW_NUMBER() OVER (ORDER BY m2_total_uf DESC, uf_id) AS rn
+        FROM UFData
+    ),
+    SumaCoef AS (
+        SELECT SUM(coef_calc) AS suma
+        FROM CoefBase
     )
     UPDATE uf
-       SET coeficiente = ROUND(
-                           100.0 * ISNULL(ufd.m2_total_uf,0)
-                           / NULLIF(@cant_m2_total_con,0)
-                         , 2)
+       SET coeficiente = CASE 
+                            WHEN cb.rn = 1 
+                                THEN cb.coef_calc + (100.00 - s.suma)
+                            ELSE cb.coef_calc
+                         END
     FROM prod.UnidadFuncional uf
-    JOIN UFData ufd
-      ON uf.uf_id = ufd.uf_id
+    JOIN CoefBase cb
+      ON uf.uf_id = cb.uf_id
+    CROSS JOIN SumaCoef s
     WHERE uf.consorcio_id = @consorcio_id
       AND uf.borrado      = 0;
+
 
     COMMIT TRAN;
 
@@ -423,109 +442,86 @@ CREATE PROCEDURE prod.sp_AltaExpensa
     @consorcio_id INT,
     @anio         INT,
     @mes          INT,
-    @total        DECIMAL(12,2) = NULL,  -- si viene NULL, se guarda 0
-    @dias_vto1    INT = 10,              -- días desde el inicio del período
-    @dias_vto2    INT = 20
+    @total        DECIMAL(12,2) = NULL,  -- se puede pasar NULL, se recalcula después
+    @dias_vto1    INT,
+    @dias_vto2    INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE 
-        @id      INT,
-        @periodo DATE,
-        @venc1   DATE,
-        @venc2   DATE,
-        @total_final DECIMAL(12,2);
-
-    ------------------------------------------------------------------
-    -- 1) Calcular período y vencimientos
-    ------------------------------------------------------------------
-    -- Período = quinto dia del mes
-    SET @periodo = DATEFROMPARTS(@anio, @mes, 5);
-
-    -- Vencimientos relativos al período
-    SET @venc1 = DATEADD(DAY, @dias_vto1, @periodo);
-    SET @venc2 = DATEADD(DAY, @dias_vto2, @periodo);
-
-    -- Si @total es NULL, se guarda 0 (luego se recalcula con otro SP)
-    SET @total_final = ISNULL(@total, 0);
-
-    ------------------------------------------------------------------
-    -- 2) Validaciones básicas
-    ------------------------------------------------------------------
-    -- Consorcio existente y activo
+    --------------------------------------------------------
+    -- 1) Validar consorcio
+    --------------------------------------------------------
     IF NOT EXISTS (
-        SELECT 1 
+        SELECT 1
         FROM prod.Consorcio
         WHERE consorcio_id = @consorcio_id
           AND borrado      = 0
     )
     BEGIN
-        RAISERROR('Consorcio inexistente o dado de baja.',16,1);
+        RAISERROR('Consorcio inexistente o dado de baja.', 16, 1);
         RETURN;
     END;
 
-    -- Total no negativo
-    IF @total_final < 0
-    BEGIN
-        RAISERROR('El total de la expensa no puede ser negativo.',16,1);
-        RETURN;
-    END;
+    --------------------------------------------------------
+    -- 2) Calcular PERIODO = 5.º día hábil del mes
+    --------------------------------------------------------
+    DECLARE @tQuinto TABLE(QuintoDiaHabil DATE);
+    DECLARE @periodo DATE;
 
-    -- Fechas coherentes con el CHECK de la tabla:
-    -- CK_Expensa_Vtos: vencimiento2 >= vencimiento1 AND vencimiento1 >= periodo
-    IF NOT (@venc2 >= @venc1 AND @venc1 >= @periodo)
-    BEGIN
-        RAISERROR('Las fechas de vencimiento no son coherentes con el período.',16,1);
-        RETURN;
-    END;
+    INSERT INTO @tQuinto(QuintoDiaHabil)
+    EXEC prod.sp_ObtenerQuintoDiaHabilConFeriados @anio = @anio, @mes = @mes;
 
-    ------------------------------------------------------------------
-    -- 3) Ya existe activa para ese consorcio+periodo ? error
-    ------------------------------------------------------------------
+    SELECT TOP 1 @periodo = QuintoDiaHabil
+    FROM @tQuinto;
+
+    -- Fallback: por las dudas, si no trajo nada
+    IF @periodo IS NULL
+        SET @periodo = DATEFROMPARTS(@anio, @mes, 5);
+
+    DECLARE @venc1 DATE = DATEADD(DAY, @dias_vto1, @periodo);
+    DECLARE @venc2 DATE = DATEADD(DAY, @dias_vto2, @periodo);
+
+    --------------------------------------------------------
+    -- 3) Control de duplicado
+    --------------------------------------------------------
     IF EXISTS (
-        SELECT 1 
+        SELECT 1
         FROM prod.Expensa
         WHERE consorcio_id = @consorcio_id
           AND periodo      = @periodo
           AND borrado      = 0
     )
     BEGIN
-        RAISERROR('Ya existe una expensa activa para ese consorcio y período.',16,1);
+        RAISERROR('Ya existe expensa para ese consorcio y período.', 16, 1);
         RETURN;
     END;
 
-    ------------------------------------------------------------------
-    -- 4) Si hay una expensa borrada lógica para ese período ? reactivar
-    ------------------------------------------------------------------
-    SELECT @id = expensa_id
-    FROM prod.Expensa
-    WHERE consorcio_id = @consorcio_id
-      AND periodo      = @periodo
-      AND borrado      = 1;
+    --------------------------------------------------------
+    -- 4) Insertar expensa
+    --------------------------------------------------------
+    INSERT INTO prod.Expensa(
+        consorcio_id,
+        periodo,
+        vencimiento1,
+        vencimiento2,
+        total,
+        borrado
+    )
+    VALUES(
+        @consorcio_id,
+        @periodo,
+        @venc1,
+        @venc2,
+        ISNULL(@total, 0.00),   -- se actualizará luego
+        0
+    );
 
-    IF @id IS NOT NULL
-    BEGIN
-        UPDATE prod.Expensa
-           SET periodo      = @periodo,
-               vencimiento1 = @venc1,
-               vencimiento2 = @venc2,
-               total        = @total_final,
-               borrado      = 0
-         WHERE expensa_id   = @id;
-
-        SELECT @id AS expensa_id;
-        RETURN;
-    END;
-
-    ------------------------------------------------------------------
-    -- 5) Nueva expensa
-    ------------------------------------------------------------------
-    INSERT INTO prod.Expensa(consorcio_id, periodo, vencimiento1, vencimiento2, total, borrado)
-    VALUES(@consorcio_id, @periodo, @venc1, @venc2, @total_final, 0);
-
+    --------------------------------------------------------
+    -- 5) Devolver el ID recién creado
+    --------------------------------------------------------
     SELECT SCOPE_IDENTITY() AS expensa_id;
-END
+END;
 GO
 
 /* =========================================
