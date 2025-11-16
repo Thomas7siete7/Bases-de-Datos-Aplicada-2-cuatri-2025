@@ -325,6 +325,9 @@ BEGIN
 END
 GO
 
+
+/* ============== Inquilino-propietarios-datos ============== */
+
 IF OBJECT_ID('prod.sp_CargarPersonas_CSV','P') IS NOT NULL
   DROP PROCEDURE prod.sp_CargarPersonas_CSV;
 GO
@@ -517,17 +520,23 @@ BEGIN
 END
 GO
 
+
+/* ============== Inquilino-propietarios-UF ============== */
+
 IF OBJECT_ID('prod.sp_CargarTitularidad_desdeUF','P') IS NOT NULL
   DROP PROCEDURE prod.sp_CargarTitularidad_desdeUF;
 GO
+
 CREATE PROCEDURE prod.sp_CargarTitularidad_desdeUF
-  @path NVARCHAR(400)   -- CSV: CVU/CBU|Nombre del consorcio|nroUnidadFuncional|piso|departamento
+  @path NVARCHAR(400)   -- CSV: CBU/CBU|Nombre del consorcio|nroUF|piso|departamento
 AS
 BEGIN
   SET NOCOUNT ON;
   SET XACT_ABORT ON;
 
-  -- 1) STAGING RAW
+  /* ===============================================================
+     1) STAGING RAW
+     =============================================================== */
   IF OBJECT_ID('tempdb..#rawUF') IS NOT NULL DROP TABLE #rawUF;
   CREATE TABLE #rawUF(
     cbu_txt       NVARCHAR(200),
@@ -550,7 +559,9 @@ BEGIN
     );';
   EXEC(@sql);
 
-  -- 2) Limpieza / normalización
+  /* ===============================================================
+     2) Limpieza / normalización básica
+     =============================================================== */
   UPDATE #rawUF
      SET cbu_txt       = LTRIM(RTRIM(REPLACE(REPLACE(cbu_txt, CHAR(160),''), CHAR(9),''))),
          consorcio_txt = LTRIM(RTRIM(consorcio_txt)),
@@ -560,8 +571,18 @@ BEGIN
 
   IF OBJECT_ID('tempdb..#UF') IS NOT NULL DROP TABLE #UF;
   SELECT
-    cbu_norm       = CASE WHEN NULLIF(cbu_txt,'') IS NULL THEN NULL
-                     ELSE LEFT(REPLACE(REPLACE(REPLACE(cbu_txt,' ',''),'-',''), CHAR(160), ''),22) END,
+    cbu_norm       = CASE 
+                       WHEN NULLIF(cbu_txt,'') IS NULL THEN NULL
+                       ELSE LEFT(
+                              REPLACE(
+                                REPLACE(
+                                  REPLACE(cbu_txt,' ',''),'-',''
+                                ),
+                                CHAR(160), ''
+                              ),
+                              22
+                            )
+                     END,
     consorcio_norm = LTRIM(RTRIM(consorcio_txt)),
     piso_norm      = CASE 
                        WHEN UPPER(piso_txt) IN ('PB','PA','SS','SB') THEN UPPER(piso_txt)
@@ -569,24 +590,31 @@ BEGIN
                          THEN CAST(TRY_CONVERT(INT, REPLACE(piso_txt,' ','')) AS VARCHAR(10))
                        ELSE UPPER(REPLACE(piso_txt,' ','')) 
                      END,
-    depto_norm     = LEFT(UPPER(REPLACE(depto_txt,' ','')), 1),
-    fecha_hasta    = CAST(NULL AS date)
+    depto_norm     = LEFT(UPPER(REPLACE(depto_txt,' ','')), 1)
   INTO #UF
   FROM #rawUF;
 
-  -- 3) Consorcio -> id
+  /* ===============================================================
+     3) Resolver consorcio_id desde nombre
+     =============================================================== */
   IF OBJECT_ID('tempdb..#UF_res') IS NOT NULL DROP TABLE #UF_res;
   SELECT
-    u.cbu_norm, u.piso_norm, u.depto_norm, u.fecha_hasta,
+    u.cbu_norm,
+    u.piso_norm,
+    u.depto_norm,
     c.consorcio_id
   INTO #UF_res
   FROM #UF u
   LEFT JOIN prod.Consorcio c
-    ON c.nombre COLLATE Latin1_General_CI_AI = u.consorcio_norm COLLATE Latin1_General_CI_AI;
+    ON c.nombre COLLATE Latin1_General_CI_AI =
+       u.consorcio_norm COLLATE Latin1_General_CI_AI
+   AND c.borrado = 0;
 
-  -- 4) UF (resolver uf_id)
+  /* ===============================================================
+     4) Resolver uf_id real
+     =============================================================== */
   IF OBJECT_ID('tempdb..#UF_ok') IS NOT NULL DROP TABLE #UF_ok;
-  SELECT r.cbu_norm, r.fecha_hasta, uf.uf_id
+  SELECT r.cbu_norm, uf.uf_id
   INTO #UF_ok
   FROM #UF_res r
   JOIN prod.UnidadFuncional uf
@@ -598,77 +626,149 @@ BEGIN
           ELSE UPPER(LTRIM(RTRIM(uf.piso)))
         END COLLATE Latin1_General_CI_AI
        ) = ISNULL(r.piso_norm,'')
-   AND UPPER(LTRIM(RTRIM(uf.depto))) COLLATE Latin1_General_CI_AI = ISNULL(r.depto_norm,'');
+   AND UPPER(LTRIM(RTRIM(uf.depto))) COLLATE Latin1_General_CI_AI = ISNULL(r.depto_norm,'')
+   AND uf.borrado = 0;
 
-  -- 5) Armar titularidad desde Persona.inquilino
-  --    fecha_desde = fecha más antigua en Pagos para ese CBU y esa UF
-  IF OBJECT_ID('tempdb..#Tit') IS NOT NULL DROP TABLE #Tit;
+  /* ===============================================================
+     5) Titular esperado según archivo (Persona + UF)
+        tipo_titularidad se toma de Persona.inquilino
+     =============================================================== */
+  IF OBJECT_ID('tempdb..#A') IS NOT NULL DROP TABLE #A;
   SELECT DISTINCT
     p.persona_id,
     u.uf_id,
-    tipo_titularidad = CASE WHEN p.inquilino = 1 THEN 'INQUILINO' ELSE 'PROPIETARIO' END,
-    fecha_desde = DATEADD(
-                            DAY, 
-                            ABS(CHECKSUM(NEWID())) % DATEDIFF(DAY, '2001-01-01', '2010-12-31'), 
-                            '2001-01-01'
-                        ),
-    fecha_hasta = u.fecha_hasta
-  INTO #Tit
+    tipo_titularidad = CASE WHEN p.inquilino = 1 THEN 'INQUILINO'
+                            ELSE 'PROPIETARIO' END
+  INTO #A
   FROM #UF_ok u
   JOIN prod.Persona p
-    ON p.cbu_cvu = u.cbu_norm;
+    ON p.cbu_cvu = u.cbu_norm
+   AND p.borrado = 0;
 
-  -- 6) Insert sin duplicar
+  /* ===============================================================
+     6) Situación actual de titularidad (vigente)
+     =============================================================== */
+  IF OBJECT_ID('tempdb..#Vig') IS NOT NULL DROP TABLE #Vig;
+  SELECT *
+  INTO #Vig
+  FROM prod.Titularidad
+  WHERE fecha_hasta IS NULL;
+
+  /* ===============================================================
+     7) Detectar cambios de titular y nuevos
+     =============================================================== */
+
+  -- 7.a) Cambios de titular: misma UF + tipo, distinta persona
+  IF OBJECT_ID('tempdb..#S_cambio') IS NOT NULL DROP TABLE #S_cambio;
+  SELECT DISTINCT
+    A.persona_id,
+    A.uf_id,
+    A.tipo_titularidad
+  INTO #S_cambio
+  FROM #A A
+  JOIN #Vig V
+    ON V.uf_id            = A.uf_id
+   AND V.tipo_titularidad = A.tipo_titularidad
+  WHERE V.persona_id <> A.persona_id;
+
+  -- 7.b) Nuevos (no hay titular vigente para esa UF + tipo)
+  IF OBJECT_ID('tempdb..#S_nuevo') IS NOT NULL DROP TABLE #S_nuevo;
+  SELECT DISTINCT
+    A.persona_id,
+    A.uf_id,
+    A.tipo_titularidad
+  INTO #S_nuevo
+  FROM #A A
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM #Vig V
+    WHERE V.uf_id            = A.uf_id
+      AND V.tipo_titularidad = A.tipo_titularidad
+  );
+
+  /* ===============================================================
+     8) Actualizar Titularidad:
+        - Cerrar antigua cuando hay cambio (S_cambio)
+        - Insertar nueva con fecha_desde = @hoy (cambio)
+        - Insertar nueva con fecha random (primera vez S_nuevo)
+     =============================================================== */
+
+  DECLARE @hoy DATE = CAST(GETDATE() AS DATE);
+
   BEGIN TRY
     BEGIN TRAN;
-      --INSERT INTO prod.Titularidad (persona_id, uf_id, tipo_titularidad, fecha_desde, fecha_hasta)
-      --SELECT t.persona_id, t.uf_id, t.tipo_titularidad, t.fecha_desde, t.fecha_hasta
-      --FROM #Tit t
-      --WHERE NOT EXISTS (
-      --  SELECT 1 
-      --  FROM prod.Titularidad x
-      --  WHERE x.persona_id = t.persona_id
-      --    AND x.uf_id      = t.uf_id
-      --    AND x.fecha_desde = t.fecha_desde
-      --);
 
-      MERGE prod.Titularidad AS D
-        USING #Tit AS S
-            ON  D.persona_id = S.persona_id
-            OR D.uf_id      = S.uf_id
-            AND D.tipo_titularidad = S.tipo_titularidad
-            -- Igualamos el período completo, tratando NULL de forma consistente
-            -- D.fecha_desde = S.fecha_desde
-            AND ISNULL(D.fecha_hasta, '9999-12-31') = ISNULL(S.fecha_hasta, '9999-12-31')
-        WHEN NOT MATCHED BY TARGET
-             AND NOT (
-               -- si la nueva viene "abierta"...
-               S.fecha_hasta IS NULL AND
-               (
-                 -- ...y ya hay una abierta para la misma persona
-                 EXISTS ( SELECT 1
-                          FROM prod.Titularidad X
-                          WHERE X.persona_id = S.persona_id
-                            AND X.fecha_hasta IS NULL )
-                 OR
-                 -- ...o ya hay una abierta para la misma UF
-                 EXISTS ( SELECT 1
-                          FROM prod.Titularidad X
-                          WHERE X.uf_id = S.uf_id
-                            AND X.fecha_hasta IS NULL )
-               )
-             )
-        THEN
-          INSERT (persona_id, uf_id, tipo_titularidad, fecha_desde, fecha_hasta)
-          VALUES (S.persona_id, S.uf_id, S.tipo_titularidad, S.fecha_desde, S.fecha_hasta);
+      /* 8.a) Cerrar titularidades anteriores cuando hay cambio */
+      UPDATE T
+      SET fecha_hasta = @hoy
+      FROM prod.Titularidad T
+      JOIN #S_cambio S
+        ON T.uf_id            = S.uf_id
+       AND T.tipo_titularidad = S.tipo_titularidad
+       AND T.fecha_hasta IS NULL;
+
+      /* 8.b) Insertar nuevas titularidades por cambio:
+              nuevo titular desde @hoy */
+      INSERT INTO prod.Titularidad (persona_id, uf_id, tipo_titularidad, fecha_desde, fecha_hasta)
+      SELECT 
+        S.persona_id,
+        S.uf_id,
+        S.tipo_titularidad,
+        @hoy,
+        NULL
+      FROM #S_cambio S
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM prod.Titularidad X
+        WHERE X.persona_id       = S.persona_id
+          AND X.uf_id            = S.uf_id
+          AND X.tipo_titularidad = S.tipo_titularidad
+          AND X.fecha_hasta IS NULL
+      );
+
+      /* 8.c) Insertar nuevas titularidades "primera vez" con fecha random */
+
+      INSERT INTO prod.Titularidad (persona_id, uf_id, tipo_titularidad, fecha_desde, fecha_hasta)
+      SELECT 
+        N.persona_id,
+        N.uf_id,
+        N.tipo_titularidad,
+        -- Fecha random SOLO cuando se inserta por primera vez
+        DATEADD(
+          DAY,
+          ABS(CHECKSUM(NEWID())) % DATEDIFF(DAY, '2001-01-01', '2010-12-31'),
+          '2001-01-01'
+        ) AS fecha_desde,
+        NULL
+      FROM #S_nuevo N
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM prod.Titularidad X
+        WHERE X.persona_id       = N.persona_id
+          AND X.uf_id            = N.uf_id
+          AND X.tipo_titularidad = N.tipo_titularidad
+          AND X.fecha_hasta IS NULL
+      );
+
     COMMIT;
   END TRY
   BEGIN CATCH
     IF XACT_STATE() <> 0 ROLLBACK;
     THROW;
   END CATCH;
+
+  /* ===============================================================
+     9) Debug opcional (podés comentar si no lo querés)
+     =============================================================== */
+  SELECT 
+    total_archivo      = (SELECT COUNT(*) FROM #A),
+    vigentes_antes     = (SELECT COUNT(*) FROM #Vig),
+    cambios_titular    = (SELECT COUNT(*) FROM #S_cambio),
+    nuevos_primera_vez = (SELECT COUNT(*) FROM #S_nuevo);
+
 END
 GO
+
 
 
 IF OBJECT_ID('prod.sp_ImportarServicios_JSON','P') IS NOT NULL
@@ -1160,20 +1260,21 @@ BEGIN
 END
 GO
 
+-- Pagos
 IF OBJECT_ID('prod.sp_ImportarPagos_CSV','P') IS NOT NULL
   DROP PROCEDURE prod.sp_ImportarPagos_CSV;
 GO
 
 CREATE PROCEDURE prod.sp_ImportarPagos_CSV
-  @path NVARCHAR(400),
-  @dias_vto1 INT = 10,   -- no se usan, quedan por compatibilidad
-  @dias_vto2 INT = 20
+  @path NVARCHAR(400)
 AS
 BEGIN
   SET NOCOUNT ON;
   SET XACT_ABORT ON;
 
-  /* 1) STAGING CSV */
+  /*=========================================================
+    1) STAGING CSV
+  =========================================================*/
   IF OBJECT_ID('tempdb..#raw') IS NOT NULL DROP TABLE #raw;
   CREATE TABLE #raw(
     id_pago_txt NVARCHAR(200),
@@ -1182,8 +1283,8 @@ BEGIN
     valor_txt   NVARCHAR(200)
   );
 
-  DECLARE @p NVARCHAR(400)=REPLACE(@path,'''','''''');
-  DECLARE @sql NVARCHAR(MAX)=N'
+  DECLARE @p   NVARCHAR(400) = REPLACE(@path,'''','''''');
+  DECLARE @sql NVARCHAR(MAX) = N'
     BULK INSERT #raw
     FROM ' + QUOTENAME(@p,'''') + N'
     WITH (
@@ -1202,79 +1303,126 @@ BEGIN
          cbu_txt     = LTRIM(RTRIM(REPLACE(REPLACE(cbu_txt, CHAR(9), ''), CHAR(160), ''))),
          valor_txt   = LTRIM(RTRIM(REPLACE(REPLACE(valor_txt, CHAR(9), ''), CHAR(160), '')));
 
-  /* 2) Parseo y normalización */
+  /*=========================================================
+    2) NORMALIZACIÓN ROBUSTA DE IMPORTE
+       - Soporta: "22,648.59", "211,800,00", "658.987,23",
+                 "$ 1.234,50", "ARS 2.345.678,9", etc.
+       - Paso clave: QUEDARSE SOLO CON [0-9,.-]
+       - Último separador ,/. = decimal, el resto ? miles
+  =========================================================*/
   IF OBJECT_ID('tempdb..#stg') IS NOT NULL DROP TABLE #stg;
 
   WITH NORM AS (
     SELECT
-      id_pago_txt, fecha_txt, cbu_txt, valor_txt AS valor_original,
+      id_pago_txt,
+      fecha_txt,
+      cbu_txt,
+      valor_txt AS v_original,
+
       TRY_CONVERT(BIGINT, id_pago_txt) AS id_pago,
-      COALESCE(TRY_CONVERT(date, fecha_txt, 103),
-               TRY_CONVERT(date, fecha_txt, 120),
-               TRY_CONVERT(date, fecha_txt)) AS fecha,
-      CASE WHEN NULLIF(LTRIM(RTRIM(cbu_txt)), '') IS NULL 
-           THEN NULL ELSE LEFT(REPLACE(REPLACE(cbu_txt,' ',''),'-',''),22) END AS cbu_norm,
+
+      COALESCE(
+        TRY_CONVERT(date, fecha_txt, 103),   -- dd/mm/yyyy
+        TRY_CONVERT(date, fecha_txt, 120),   -- yyyy-mm-dd hh:mi:ss
+        TRY_CONVERT(date, fecha_txt)        -- fallback
+      ) AS fecha,
+
+      CASE
+        WHEN NULLIF(LTRIM(RTRIM(cbu_txt)), '') IS NULL THEN NULL
+        ELSE LEFT(REPLACE(REPLACE(cbu_txt,' ',''),'-',''),22)
+      END AS cbu_norm,
+
       valor_txt AS v0
     FROM #raw
   ),
-  N1 AS (
+  -- Me quedo únicamente con dígitos, coma, punto y signo menos
+  FILT AS (
     SELECT
-      id_pago_txt, fecha_txt, cbu_txt, valor_original,
-      id_pago, fecha, cbu_norm,
-      REPLACE(REPLACE(REPLACE(v0, '.', ''), ',', '.'), '$', '') AS v1_normalizado
-    FROM NORM
+      n.*,
+      v1 = CAST((
+             SELECT SUBSTRING(n.v0, v.n, 1) AS [text()]
+             FROM (SELECT TOP (LEN(n.v0)) ROW_NUMBER() OVER(ORDER BY (SELECT 1)) AS n
+                   FROM sys.all_objects) v
+             WHERE SUBSTRING(n.v0, v.n, 1) LIKE '[0-9,.-]'
+             FOR XML PATH(''), TYPE
+           ).value('.','nvarchar(max)') AS NVARCHAR(MAX))
+    FROM NORM n
   ),
-  N2 AS (
+  LAST_SEP AS (
     SELECT
-      n1.*,
-      (
-        SELECT CAST((
-          SELECT SUBSTRING(n1.v1_normalizado, v.n, 1) AS [text()]
-          FROM (SELECT TOP (LEN(n1.v1_normalizado)) ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS n
-                FROM sys.all_objects) v
-          WHERE SUBSTRING(n1.v1_normalizado, v.n, 1) LIKE '[0-9.]'
-          FOR XML PATH(''), TYPE
-        ).value('.','nvarchar(max)') AS NVARCHAR(MAX))
-      ) AS v2_filtrado,
-      (
-        SELECT CAST((
-          SELECT SUBSTRING(n1.v1_normalizado, v.n, 1) AS [text()]
-          FROM (SELECT TOP (LEN(n1.v1_normalizado)) ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS n
-                FROM sys.all_objects) v
-          WHERE SUBSTRING(n1.v1_normalizado, v.n, 1) NOT LIKE '[0-9.]'
-          FOR XML PATH(''), TYPE
-        ).value('.','nvarchar(max)') AS NVARCHAR(MAX))
-      ) AS char_inval
-    FROM N1 n1
+      f.*,
+      posLastCom = NULLIF(LEN(f.v1) - CHARINDEX(',', REVERSE(f.v1)) + 1, LEN(f.v1)+1),
+      posLastDot = NULLIF(LEN(f.v1) - CHARINDEX('.', REVERSE(f.v1)) + 1, LEN(f.v1)+1)
+    FROM FILT f
+  ),
+  MARK AS (
+    SELECT
+      l.*,
+      lastSep =
+        CASE
+          WHEN posLastCom IS NOT NULL AND posLastDot IS NOT NULL THEN
+               CASE WHEN posLastCom > posLastDot THEN ',' ELSE '.' END
+          WHEN posLastCom IS NOT NULL THEN ','
+          WHEN posLastDot IS NOT NULL THEN '.'
+          ELSE ''
+        END
+    FROM LAST_SEP l
+  ),
+  VMARK AS (
+    SELECT
+      m.*,
+      v_mark =
+        CASE
+          WHEN lastSep = ',' THEN STUFF(m.v1, m.posLastCom, 1, '#')
+          WHEN lastSep = '.' THEN STUFF(m.v1, m.posLastDot, 1, '#')
+          ELSE m.v1
+        END
+    FROM MARK m
+  ),
+  VNUM AS (
+    SELECT
+      v.*,
+      -- saco todos los separadores de miles, dejo solo '#'
+      v_clean = REPLACE(REPLACE(v.v_mark, ',', ''), '.', '')
+    FROM VMARK v
   )
   SELECT
-    id_pago_txt, fecha_txt, cbu_txt, valor_original,
-    id_pago, fecha, cbu_norm,
-    v1_normalizado, v2_filtrado, char_inval,
-    TRY_CONVERT(DECIMAL(12,2), NULLIF(v2_filtrado,'')) AS importe
+    id_pago_txt,
+    fecha_txt,
+    cbu_txt,
+    v_original,
+    id_pago,
+    fecha,
+    cbu_norm,
+    TRY_CONVERT(DECIMAL(12,2), REPLACE(v_clean, '#', '.')) AS importe
   INTO #stg
-  FROM N2;
+  FROM VNUM;
 
-  /* 3) Clasificación */
+  /*=========================================================
+    3) VALIDACIÓN: OK vs RECHAZOS
+  =========================================================*/
   IF OBJECT_ID('tempdb..#rej') IS NOT NULL DROP TABLE #rej;
   SELECT
     s.*,
-    CASE
-      WHEN s.id_pago IS NULL THEN 'ID_PAGO_INVALIDO'
-      WHEN s.fecha   IS NULL THEN 'FECHA_INVALIDA'
-      WHEN s.cbu_norm IS NULL OR LEN(s.cbu_norm) <> 22 THEN 'CBU_INVALIDO_O_LONGITUD'
-      WHEN s.importe IS NULL THEN 'IMPORTE_INVALIDO'
+    causa = CASE
+      WHEN s.id_pago   IS NULL THEN 'ID_PAGO_INVALIDO'
+      WHEN s.fecha     IS NULL THEN 'FECHA_INVALIDA'
+      WHEN s.cbu_norm IS NULL OR LEN(s.cbu_norm) <> 22 THEN 'CBU_INVALIDO_O_LEN'
+      WHEN s.importe   IS NULL OR s.importe <= 0 THEN 'IMPORTE_INVALIDO'
       ELSE 'OK'
-    END AS causa
+    END
   INTO #rej
   FROM #stg s;
 
   IF OBJECT_ID('tempdb..#ok') IS NOT NULL DROP TABLE #ok;
-  SELECT * INTO #ok FROM #rej WHERE causa = 'OK';
+  SELECT * INTO #ok
+  FROM #rej
+  WHERE causa = 'OK';
 
-  /* 4) Asociación REAL sin titular_unidad_id:
-        CBU -> Persona -> Titularidad activa -> UF -> Consorcio -> Expensa del mes */
-  IF OBJECT_ID('tempdb..#match') IS NOT NULL DROP TABLE #match;
+  /*=========================================================
+    4) RESOLVER Persona / Titularidad / UF / Consorcio / Expensa
+  =========================================================*/
+  IF OBJECT_ID('tempdb..#matchBase') IS NOT NULL DROP TABLE #matchBase;
   SELECT
     o.id_pago,
     o.fecha,
@@ -1282,63 +1430,143 @@ BEGIN
     o.importe,
 
     pr.persona_id,
-    e.expensa_id,
-
-    estado_calc = CASE 
-                    WHEN pr.persona_id IS NOT NULL AND e.expensa_id IS NOT NULL
-                    THEN 'ASOCIADO' ELSE 'NO ASOCIADO'
-                  END
-  INTO #match
+    t.titular_unidad_id,
+    uf.uf_id,
+    uf.consorcio_id,
+    periodo = DATEFROMPARTS(YEAR(o.fecha), MONTH(o.fecha), 1),
+    e.expensa_id
+  INTO #matchBase
   FROM #ok o
-  LEFT JOIN prod.Persona         pr ON pr.cbu_cvu     = o.cbu_norm
+  LEFT JOIN prod.Persona         pr ON pr.cbu_cvu     = o.cbu_norm AND pr.borrado = 0
   LEFT JOIN prod.Titularidad     t  ON t.persona_id   = pr.persona_id
                                     AND t.fecha_hasta IS NULL
-  LEFT JOIN prod.UnidadFuncional uf ON uf.uf_id       = t.uf_id
+  LEFT JOIN prod.UnidadFuncional uf ON uf.uf_id       = t.uf_id AND uf.borrado = 0
   LEFT JOIN prod.Expensa         e  ON e.consorcio_id = uf.consorcio_id
-                                    AND e.periodo     = DATEFROMPARTS(YEAR(o.fecha), MONTH(o.fecha), 1);
+                                    AND e.periodo     = DATEFROMPARTS(YEAR(o.fecha), MONTH(o.fecha), 1)
+                                    AND e.borrado     = 0;
 
-  /* 5) Insertar pagos: ASOCIADO y NO ASOCIADO (sin titular_unidad_id) */
+  /*=========================================================
+    5) Crear Expensas "vacías" si hay consorcio pero no expensa
+  =========================================================*/
+  ;WITH Faltantes AS (
+    SELECT DISTINCT
+      mb.consorcio_id,
+      mb.periodo
+    FROM #matchBase mb
+    WHERE mb.consorcio_id IS NOT NULL
+      AND mb.expensa_id  IS NULL
+  )
+  INSERT INTO prod.Expensa(consorcio_id, periodo, vencimiento1, vencimiento2, total)
+  SELECT
+    f.consorcio_id,
+    f.periodo,
+    DATEADD(DAY, 10, f.periodo),
+    DATEADD(DAY, 20, f.periodo),
+    0.00
+  FROM Faltantes f
+  WHERE NOT EXISTS (
+    SELECT 1 FROM prod.Expensa e
+    WHERE e.consorcio_id = f.consorcio_id
+      AND e.periodo      = f.periodo
+  );
+
+  -- refresco expensa_id en #matchBase
+  UPDATE mb
+    SET mb.expensa_id = e.expensa_id
+  FROM #matchBase mb
+  JOIN prod.Expensa e
+    ON e.consorcio_id = mb.consorcio_id
+   AND e.periodo      = mb.periodo
+   AND e.borrado      = 0
+  WHERE mb.expensa_id IS NULL
+    AND mb.consorcio_id IS NOT NULL;
+
+  /*=========================================================
+    6) Clasificación ASOCIADO / NO ASOCIADO (solo para ESTADO)
+  =========================================================*/
+  IF OBJECT_ID('tempdb..#match') IS NOT NULL DROP TABLE #match;
+  SELECT
+    mb.*,
+    estado_calc = CASE
+                    WHEN mb.persona_id IS NOT NULL
+                     AND mb.titular_unidad_id IS NOT NULL
+                    THEN 'ASOCIADO'
+                    ELSE 'NO ASOCIADO'
+                  END
+  INTO #match
+  FROM #matchBase mb;
+
+  /*=========================================================
+    7) INSERT EN PAGO (idempotente por nro_transaccion)
+  =========================================================*/
+  IF OBJECT_ID('tempdb..#INS') IS NOT NULL DROP TABLE #INS;
+  CREATE TABLE #INS(
+    nro_transaccion VARCHAR(100) NOT NULL,
+    estado          VARCHAR(15)  NOT NULL
+  );
+
   BEGIN TRY
     BEGIN TRAN;
 
-      -- ASOCIADO
       INSERT INTO prod.Pago (expensa_id, fecha, importe, nro_transaccion, estado, cbu_cvu_origen)
-      SELECT m.expensa_id, m.fecha, m.importe, m.id_pago, 'ASOCIADO', m.cbu_norm
+      OUTPUT inserted.nro_transaccion, inserted.estado
+        INTO #INS(nro_transaccion, estado)
+      SELECT
+        m.expensa_id,
+        m.fecha,
+        m.importe,
+        CAST(m.id_pago AS VARCHAR(100)) AS nro_transaccion,
+        m.estado_calc,
+        m.cbu_norm
       FROM #match m
-      WHERE m.estado_calc = 'ASOCIADO'
-        AND NOT EXISTS (SELECT 1 FROM prod.Pago p WHERE p.nro_transaccion = m.id_pago);
-
-      -- NO ASOCIADO (expensa_id = NULL)
-      INSERT INTO prod.Pago (expensa_id, fecha, importe, nro_transaccion, estado, cbu_cvu_origen)
-      SELECT m.expensa_id, m.fecha, m.importe, m.id_pago, 'NO ASOCIADO', m.cbu_norm
-      FROM #match m
-      WHERE m.estado_calc = 'NO ASOCIADO'
-        AND NOT EXISTS (SELECT 1 FROM prod.Pago p WHERE p.nro_transaccion = m.id_pago);
+      WHERE m.expensa_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM prod.Pago p
+          WHERE p.nro_transaccion = CAST(m.id_pago AS VARCHAR(100))
+        );
 
     COMMIT;
   END TRY
   BEGIN CATCH
-    IF XACT_STATE()<>0 ROLLBACK; 
+    IF XACT_STATE() <> 0 ROLLBACK;
     THROW;
   END CATCH;
 
-  /*6) Resumen / Debug 
-  SELECT 
-    filas_ok           = (SELECT COUNT(*) FROM #ok),
-    insert_asociados   = (SELECT COUNT(*) FROM #match WHERE estado_calc='ASOCIADO'),
-    insert_no_asociado = (SELECT COUNT(*) FROM #match WHERE estado_calc='NO ASOCIADO');
+  /*=========================================================
+    8) DEBUG / RESUMEN
+  =========================================================
+  DECLARE @total_archivo INT      = (SELECT COUNT(*) FROM #raw);
+  DECLARE @ok_validos    INT      = (SELECT COUNT(*) FROM #ok);
+  DECLARE @con_consorcio INT      = (SELECT COUNT(*) FROM #matchBase WHERE consorcio_id IS NOT NULL);
+  DECLARE @sin_consorcio INT      = (SELECT COUNT(*) FROM #matchBase WHERE consorcio_id IS NULL);
+  DECLARE @ins_total     INT      = (SELECT COUNT(*) FROM #INS);
+  DECLARE @ins_asoc      INT      = (SELECT COUNT(*) FROM #INS WHERE estado = 'ASOCIADO');
+  DECLARE @ins_noasoc    INT      = (SELECT COUNT(*) FROM #INS WHERE estado = 'NO ASOCIADO');
+  DECLARE @no_ins_posib  INT      = (SELECT COUNT(*) FROM #match WHERE expensa_id IS NULL);
 
-  SELECT TOP 200 *
+  SELECT 
+    etapa                    = 'RESUMEN',
+    total_archivo            = @total_archivo,
+    pagos_validos_parseados  = @ok_validos,
+    pagos_con_consorcio      = @con_consorcio,
+    pagos_sin_consorcio      = @sin_consorcio,
+    insertados_total         = @ins_total,
+    insertados_asociado      = @ins_asoc,
+    insertados_no_asociado   = @ins_noasoc,
+    no_insertados_sin_expensa= @no_ins_posib;
+
+  -- Motivos de rechazo en parseo / validación
+  SELECT causa, COUNT(*) AS casos
   FROM #rej
   WHERE causa <> 'OK'
-  ORDER BY id_pago_txt;
-
-  SELECT TOP 50 
-    p.pago_id, p.fecha, p.importe, p.nro_transaccion, p.estado, p.cbu_cvu_origen
-  FROM prod.Pago p
-  ORDER BY p.pago_id DESC;*/
+  GROUP BY causa
+  ORDER BY causa;*/
 END
 GO
+
+
+
 
 
 EXEC prod.sp_ImportarConsorcios
@@ -1370,14 +1598,3 @@ GO
 EXEC prod.sp_ImportarPagos_CSV
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\pagos_consorcios.csv';
 GO
-
-
-
-
-
-
-
-
-
-SELECT * FROM prod.Titularidad order by uf_id--Inquilino
-
