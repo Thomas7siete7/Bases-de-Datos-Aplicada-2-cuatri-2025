@@ -110,31 +110,30 @@ BEGIN
 END;
 GO
 
-
 /*
 ==============================
         REPORTE 2
 ==============================
 */
 
-
 CREATE OR ALTER PROCEDURE prod.Reporte_RecaudacionPorUFyMes
 (
     @ConsorcioId INT = NULL,
     @Anio INT = NULL
-
 )
 AS
 BEGIN
     SET NOCOUNT ON;
 
     IF @Anio IS NULL SET @Anio = YEAR(GETDATE());
+
     -------------------------------------------------------------
     -- 1. Columnas fijas con nombres de meses
     -------------------------------------------------------------
     DECLARE @cols NVARCHAR(MAX) =
         '[Enero],[Febrero],[Marzo],[Abril],[Mayo],[Junio],'+
         '[Julio],[Agosto],[Septiembre],[Octubre],[Noviembre],[Diciembre]';
+
     -------------------------------------------------------------
     -- 2. SQL dinámico
     -------------------------------------------------------------
@@ -147,7 +146,20 @@ BEGIN
             uf.uf_id,
             uf.piso,
             uf.depto,
-            DATENAME(MONTH, p.fecha) AS MesNombre,
+            CASE MONTH(p.fecha)
+                WHEN 1  THEN ''Enero''
+                WHEN 2  THEN ''Febrero''
+                WHEN 3  THEN ''Marzo''
+                WHEN 4  THEN ''Abril''
+                WHEN 5  THEN ''Mayo''
+                WHEN 6  THEN ''Junio''
+                WHEN 7  THEN ''Julio''
+                WHEN 8  THEN ''Agosto''
+                WHEN 9  THEN ''Septiembre''
+                WHEN 10 THEN ''Octubre''
+                WHEN 11 THEN ''Noviembre''
+                WHEN 12 THEN ''Diciembre''
+            END AS MesNombre,
             p.importe
         FROM prod.Pago p
         INNER JOIN prod.Persona per
@@ -190,7 +202,6 @@ BEGIN
         N'@ConsorcioId INT, @Anio INT',
         @ConsorcioId = @ConsorcioId,
         @Anio = @Anio;
-
 END;
 GO
 
