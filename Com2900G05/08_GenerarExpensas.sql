@@ -421,7 +421,7 @@ BEGIN
         CONCAT(
             'Proveedor: ', pr.nombre,
             ' - Tipo: ', o.tipo_gasto_ordinario,
-            ' - Ref: ', o.nro_factura
+            ' - Ref: ', pc.referencia
         ) AS detalle,
         o.importe
     FROM prod.Ordinarios o

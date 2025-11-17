@@ -6,11 +6,11 @@ SELECT * FROM prod.Expensa
 SELECT * FROM prod.Extraordinarios
 SELECT * FROM prod.Factura 
 SELECT * FROM prod.Mora 
-SELECT * FROM prod.Ordinarios where pc_id = 6 
+SELECT * FROM prod.Ordinarios where pc_id = 6
 SELECT * FROM prod.Pago
 SELECT * FROM prod.Persona
 SELECT * FROM prod.Proveedor
-SELECT * FROM prod.ProveedorConsorcio --where consorcio_id = 1--order by proveedor_id, consorcio_id
+SELECT * FROM prod.ProveedorConsorcio where consorcio_id = 1
 SELECT * FROM prod.Titularidad  
 SELECT * FROM prod.UnidadAccesoria 
 SELECT * FROM prod.UnidadFuncional 

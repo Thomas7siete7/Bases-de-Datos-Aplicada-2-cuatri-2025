@@ -117,45 +117,27 @@ GO
 ==============================
 */
 
+
 CREATE OR ALTER PROCEDURE prod.Reporte_RecaudacionPorUFyMes
 (
     @ConsorcioId INT = NULL,
     @Anio INT = NULL
+
 )
 AS
 BEGIN
     SET NOCOUNT ON;
 
     IF @Anio IS NULL SET @Anio = YEAR(GETDATE());
-
     -------------------------------------------------------------
     -- 1. Columnas fijas con nombres de meses
     -------------------------------------------------------------
     DECLARE @cols NVARCHAR(MAX) =
         '[Enero],[Febrero],[Marzo],[Abril],[Mayo],[Junio],'+
         '[Julio],[Agosto],[Septiembre],[Octubre],[Noviembre],[Diciembre]';
-
-    SELECT @cols = STRING_AGG(QUOTENAME(d.depto), ',')
-    FROM (
-        SELECT DISTINCT uf.depto
-        FROM prod.UnidadFuncional uf
-        WHERE uf.borrado = 0
-          AND (@ConsorcioId IS NULL OR uf.consorcio_id = @ConsorcioId)
-    ) d;
-
-    IF @cols IS NULL
-    BEGIN
-        -- No hay UF para ese consorcio: devolvemos schema vacío
-        SELECT 
-            CAST(NULL AS INT) AS Anio,
-            CAST(NULL AS INT) AS Mes
-        WHERE 1 = 0;
-        RETURN;
-    END;
-
-    --------------------------------------------------------------------
-    -- 2) SQL dinámico con PIVOT por depto
-    --------------------------------------------------------------------
+    -------------------------------------------------------------
+    -- 2. SQL dinámico
+    -------------------------------------------------------------
     DECLARE @sql NVARCHAR(MAX);
 
     SET @sql = '
@@ -208,6 +190,7 @@ BEGIN
         N'@ConsorcioId INT, @Anio INT',
         @ConsorcioId = @ConsorcioId,
         @Anio = @Anio;
+
 END;
 GO
 
