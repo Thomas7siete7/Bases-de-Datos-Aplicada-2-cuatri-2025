@@ -479,8 +479,20 @@ BEGIN
     IF @periodo IS NULL
         SET @periodo = DATEFROMPARTS(@anio, @mes, 5);
 
-    DECLARE @venc1 DATE = DATEADD(DAY, @dias_vto1, @periodo);
-    DECLARE @venc2 DATE = DATEADD(DAY, @dias_vto2, @periodo);
+    DECLARE 
+        @venc1 DATE = DATEADD(DAY, @dias_vto1, @periodo),
+        @venc2 DATE = DATEADD(DAY, @dias_vto2, @periodo),
+        @venc1_hab DATE,
+        @venc2_hab DATE;
+
+    --------------------------------------------------------
+    -- 2.b) Ajustar vencimientos al próximo día hábil
+    --------------------------------------------------------
+    EXEC prod.sp_AjustarADiaHabilConFeriados @fecha_in = @venc1, @fecha_out = @venc1_hab OUTPUT;
+    EXEC prod.sp_AjustarADiaHabilConFeriados @fecha_in = @venc2, @fecha_out = @venc2_hab OUTPUT;
+
+    SET @venc1 = @venc1_hab;
+    SET @venc2 = @venc2_hab;
 
     --------------------------------------------------------
     -- 3) Control de duplicado
@@ -520,12 +532,13 @@ BEGIN
     --------------------------------------------------------
     -- 5) Devolver el ID recién creado
     --------------------------------------------------------
-    SELECT SCOPE_IDENTITY() AS expensa_id;
+    --SELECT SCOPE_IDENTITY() AS expensa_id;
 END;
 GO
 
+
 /* =========================================
-   ALTA EXTRAORDINARIO (histórico ? sólo inserta)
+   ALTA EXTRAORDINARIO 
    ========================================= */
 IF OBJECT_ID('prod.sp_AltaExtraordinario','P') IS NOT NULL
     DROP PROCEDURE prod.sp_AltaExtraordinario;

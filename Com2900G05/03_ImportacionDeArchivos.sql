@@ -769,8 +769,6 @@ BEGIN
 END
 GO
 
-
-
 IF OBJECT_ID('prod.sp_ImportarServicios_JSON','P') IS NOT NULL
   DROP PROCEDURE prod.sp_ImportarServicios_JSON;
 GO
@@ -1017,42 +1015,152 @@ BEGIN
     RETURN;
   END;
 
-  /* 5) MERGE en Expensa -------------------------------------------------- */
-  BEGIN TRY
-    BEGIN TRAN;
+  /* 5) MERGE en Expensa (usando 5° día hábil y ajuste a día hábil) ------- */
+  IF OBJECT_ID('tempdb..#Tot', 'U') IS NOT NULL DROP TABLE #Tot;
+  CREATE TABLE #Tot(
+      id           INT IDENTITY(1,1) PRIMARY KEY,
+      consorcio_id INT,
+      mes_num      INT,
+      periodo      DATE NULL,
+      vto1         DATE NULL,
+      vto2         DATE NULL,
+      total        DECIMAL(18,2)
+  );
 
-      ;WITH Tot AS (
-        SELECT
-          r.consorcio_id,
-          CONVERT(date, DATEFROMPARTS(@anio, r.mes_num, 1)) AS periodo,
-          ISNULL(r.BANCARIOS,0) + ISNULL(r.LIMPIEZA,0) + ISNULL(r.ADMINISTRACION,0) +
-          ISNULL(r.SEGUROS,0) + ISNULL(r.GASTOS_GENERALES,0) +
-          ISNULL(r.SERVICIOS_PUBLICOS_Agua,0) + ISNULL(r.SERVICIOS_PUBLICOS_Luz,0) AS total
-        FROM #Srv2R r
-      )
+  INSERT INTO #Tot(consorcio_id, mes_num, total)
+  SELECT
+      r.consorcio_id,
+      r.mes_num,
+      ISNULL(r.BANCARIOS,0) + ISNULL(r.LIMPIEZA,0) + ISNULL(r.ADMINISTRACION,0) +
+      ISNULL(r.SEGUROS,0) + ISNULL(r.GASTOS_GENERALES,0) +
+      ISNULL(r.SERVICIOS_PUBLICOS_Agua,0) + ISNULL(r.SERVICIOS_PUBLICOS_Luz,0) AS total
+  FROM #Srv2R r;
+
+  -------------------------------------------------------------------------
+  -- 5.a) Obtener 5° día hábil del mes (@anio, mes_num)
+  -------------------------------------------------------------------------
+  IF OBJECT_ID('tempdb..#QuintoDiaHabil', 'U') IS NOT NULL DROP TABLE #QuintoDiaHabil;
+  CREATE TABLE #QuintoDiaHabil(
+      mes_num      INT PRIMARY KEY,
+      quinto_dia   DATE NOT NULL
+  );
+
+  DECLARE
+      @mes         INT,
+      @fecha_q5    DATE;
+
+  DECLARE @TmpQ TABLE(QuintoDiaHabil DATE);
+
+  DECLARE curMes CURSOR LOCAL FAST_FORWARD FOR
+      SELECT DISTINCT mes_num FROM #Tot;
+
+  OPEN curMes;
+  FETCH NEXT FROM curMes INTO @mes;
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+      DELETE FROM @TmpQ;
+
+      INSERT INTO @TmpQ(QuintoDiaHabil)
+      EXEC prod.sp_ObtenerQuintoDiaHabilConFeriados
+          @anio = @anio,
+          @mes  = @mes;
+
+      SELECT @fecha_q5 = QuintoDiaHabil FROM @TmpQ;
+
+      INSERT INTO #QuintoDiaHabil(mes_num, quinto_dia)
+      VALUES(@mes, @fecha_q5);
+
+      FETCH NEXT FROM curMes INTO @mes;
+  END
+
+  CLOSE curMes;
+  DEALLOCATE curMes;
+
+  -- Asignar el periodo de la expensa = 5° día hábil
+  UPDATE t
+     SET t.periodo = q.quinto_dia
+  FROM #Tot t
+  JOIN #QuintoDiaHabil q
+    ON q.mes_num = t.mes_num;
+
+  -------------------------------------------------------------------------
+  -- 5.b) Calcular vencimientos base (periodo + 10 y + 20 días)
+  -------------------------------------------------------------------------
+  UPDATE #Tot
+     SET vto1 = DATEADD(DAY, 10, periodo),
+         vto2 = DATEADD(DAY, 20, periodo);
+
+  -------------------------------------------------------------------------
+  -- 5.c) Ajustar vencimientos a día hábil (con feriados)
+  -------------------------------------------------------------------------
+  DECLARE
+      @id      INT,
+      @vto1    DATE,
+      @vto2    DATE,
+      @ajustada DATE;
+
+  DECLARE curVto CURSOR LOCAL FAST_FORWARD FOR
+      SELECT id, vto1, vto2
+      FROM #Tot;
+
+  OPEN curVto;
+  FETCH NEXT FROM curVto INTO @id, @vto1, @vto2;
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+      -- Ajustar vencimiento1
+      SET @ajustada = NULL;
+      EXEC prod.sp_AjustarADiaHabilConFeriados
+          @fecha_in  = @vto1,
+          @fecha_out = @ajustada OUTPUT;
+
+      UPDATE #Tot
+         SET vto1 = @ajustada
+       WHERE id = @id;
+
+      -- Ajustar vencimiento2
+      SET @ajustada = NULL;
+      EXEC prod.sp_AjustarADiaHabilConFeriados
+          @fecha_in  = @vto2,
+          @fecha_out = @ajustada OUTPUT;
+
+      UPDATE #Tot
+         SET vto2 = @ajustada
+       WHERE id = @id;
+
+      FETCH NEXT FROM curVto INTO @id, @vto1, @vto2;
+  END
+
+  CLOSE curVto;
+  DEALLOCATE curVto;
+
+  -------------------------------------------------------------------------
+  -- 5.d) MERGE final a prod.Expensa usando fechas ya ajustadas
+  -------------------------------------------------------------------------
+  BEGIN TRY
+      BEGIN TRAN;
+
       MERGE prod.Expensa AS D
       USING (
-        SELECT consorcio_id, periodo,
-               DATEADD(DAY,10,periodo) AS vto1,
-               DATEADD(DAY,20,periodo) AS vto2,
-               total
-        FROM Tot
+          SELECT consorcio_id, periodo, vto1, vto2, total
+          FROM #Tot
       ) AS S
-        ON D.consorcio_id = S.consorcio_id AND D.periodo = S.periodo
+        ON D.consorcio_id = S.consorcio_id
+       AND D.periodo      = S.periodo
       WHEN MATCHED THEN
-        UPDATE SET D.vencimiento1 = S.vto1,
-                   D.vencimiento2 = S.vto2,
-                   D.total        = S.total
+          UPDATE SET D.vencimiento1 = S.vto1,
+                     D.vencimiento2 = S.vto2,
+                     D.total        = S.total
       WHEN NOT MATCHED THEN
-        INSERT (consorcio_id, periodo, vencimiento1, vencimiento2, total)
-        VALUES (S.consorcio_id, S.periodo, S.vto1, S.vto2, S.total);
+          INSERT (consorcio_id, periodo, vencimiento1, vencimiento2, total)
+          VALUES (S.consorcio_id, S.periodo, S.vto1, S.vto2, S.total);
 
-    COMMIT;
+      COMMIT;
   END TRY
   BEGIN CATCH
-    IF XACT_STATE() <> 0 ROLLBACK;
-    THROW;
+      IF XACT_STATE() <> 0 ROLLBACK;
+      THROW;
   END CATCH;
+
 
   /* 6) Aplanado (sin filtro, para debug) -------------------------------- */
   IF OBJECT_ID('tempdb..#Flat') IS NOT NULL DROP TABLE #Flat;
@@ -1066,7 +1174,8 @@ BEGIN
   FROM #Srv2R r
   JOIN prod.Expensa e
     ON e.consorcio_id = r.consorcio_id
-   AND e.periodo = DATEFROMPARTS(@anio, r.mes_num, 1)
+   AND YEAR(e.periodo)  = @anio
+   AND MONTH(e.periodo) = r.mes_num      -- ? Matchea por año/mes, no por día
   CROSS APPLY (VALUES
     ('BANCARIOS',                r.BANCARIOS),
     ('LIMPIEZA',                 r.LIMPIEZA),
@@ -1076,6 +1185,7 @@ BEGIN
     ('SERVICIOS PUBLICOS-Agua',  r.SERVICIOS_PUBLICOS_Agua),
     ('SERVICIOS PUBLICOS-Luz',   r.SERVICIOS_PUBLICOS_Luz)
   ) AS v(rubro, importe);
+
 
   /* 6.b) Normalización rubros + mapeos a ProveedorConsorcio ------------- */
   ;WITH FlatNorm AS (
@@ -1445,41 +1555,73 @@ BEGIN
                                     AND e.periodo     = DATEFROMPARTS(YEAR(o.fecha), MONTH(o.fecha), 1)
                                     AND e.borrado     = 0;
 
-  /*=========================================================
-    5) Crear Expensas "vacías" si hay consorcio pero no expensa
+ /*=========================================================
+    5) Crear Expensa del MES SIGUIENTE al último pago,
+       usando 5.º día hábil 
   =========================================================*/
-  ;WITH Faltantes AS (
-    SELECT DISTINCT
-      mb.consorcio_id,
-      mb.periodo
-    FROM #matchBase mb
-    WHERE mb.consorcio_id IS NOT NULL
-      AND mb.expensa_id  IS NULL
-  )
-  INSERT INTO prod.Expensa(consorcio_id, periodo, vencimiento1, vencimiento2, total)
-  SELECT
-    f.consorcio_id,
-    f.periodo,
-    DATEADD(DAY, 10, f.periodo),
-    DATEADD(DAY, 20, f.periodo),
-    0.00
-  FROM Faltantes f
-  WHERE NOT EXISTS (
-    SELECT 1 FROM prod.Expensa e
-    WHERE e.consorcio_id = f.consorcio_id
-      AND e.periodo      = f.periodo
-  );
+  DECLARE @ultimaFechaPago DATE;
 
-  -- refresco expensa_id en #matchBase
-  UPDATE mb
-    SET mb.expensa_id = e.expensa_id
-  FROM #matchBase mb
-  JOIN prod.Expensa e
-    ON e.consorcio_id = mb.consorcio_id
-   AND e.periodo      = mb.periodo
-   AND e.borrado      = 0
-  WHERE mb.expensa_id IS NULL
-    AND mb.consorcio_id IS NOT NULL;
+  SELECT @ultimaFechaPago = MAX(fecha)
+  FROM #ok;   -- o #matchBase, es lo mismo
+
+  IF @ultimaFechaPago IS NOT NULL
+  BEGIN
+      DECLARE 
+          @fechaTarget   DATE,
+          @anioTarget    INT,
+          @mesTarget     INT,
+          @periodoTarget DATE,
+          @vto1          DATE,
+          @vto2          DATE;
+
+      -- mes siguiente al último pago
+      SET @fechaTarget = DATEADD(MONTH, 1, @ultimaFechaPago);
+      SET @anioTarget  = YEAR(@fechaTarget);
+      SET @mesTarget   = MONTH(@fechaTarget);
+
+      -- 5.º día hábil de ese mes (SP de feriados)
+      DECLARE @tQuinto TABLE(QuintoDiaHabil DATE);
+
+      INSERT INTO @tQuinto(QuintoDiaHabil)
+      EXEC prod.sp_ObtenerQuintoDiaHabilConFeriados
+           @anio = @anioTarget,
+           @mes  = @mesTarget;
+
+      SELECT TOP 1 @periodoTarget = QuintoDiaHabil
+      FROM @tQuinto;
+
+      -- fallback por si el SP no devolviera nada
+      IF @periodoTarget IS NULL
+          SET @periodoTarget = DATEFROMPARTS(@anioTarget, @mesTarget, 5);
+
+      SET @vto1 = DATEADD(DAY, 10, @periodoTarget);
+      SET @vto2 = DATEADD(DAY, 20, @periodoTarget);
+
+      ;WITH ConsAfectados AS (
+          SELECT DISTINCT consorcio_id
+          FROM #matchBase
+          WHERE consorcio_id IS NOT NULL
+      ),
+      Faltantes AS (
+          SELECT c.consorcio_id
+          FROM ConsAfectados c
+          WHERE NOT EXISTS (
+              SELECT 1
+              FROM prod.Expensa e
+              WHERE e.consorcio_id = c.consorcio_id
+                AND e.periodo      = @periodoTarget
+                AND e.borrado      = 0
+          )
+      )
+      INSERT INTO prod.Expensa(consorcio_id, periodo, vencimiento1, vencimiento2, total)
+      SELECT
+          consorcio_id,
+          @periodoTarget,
+          @vto1,
+          @vto2,
+          0.00
+      FROM Faltantes;
+  END
 
   /*=========================================================
     6) Clasificación ASOCIADO / NO ASOCIADO (solo para ESTADO)
@@ -1565,10 +1707,6 @@ BEGIN
 END
 GO
 
-
-
-
-
 EXEC prod.sp_ImportarConsorcios
   @path = 'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/consorcios/datos varios.xlsx';
 GO
@@ -1580,7 +1718,6 @@ GO
 EXEC prod.sp_ImportarUF_TXT 
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\UF por consorcio.txt';
 GO
-
 
 EXEC prod.sp_CargarPersonas_CSV
   @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Inquilino-propietarios-datos.csv';

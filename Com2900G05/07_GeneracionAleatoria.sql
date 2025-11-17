@@ -490,6 +490,7 @@ GO
 IF OBJECT_ID('prod.sp_CargarProveedorConsorcioAleatorios','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarProveedorConsorcioAleatorios;
 GO
+
 CREATE PROCEDURE prod.sp_CargarProveedorConsorcioAleatorios
     @cantidad INT
 AS
@@ -516,6 +517,7 @@ BEGIN
     BEGIN
         SET @intentos += 1;
 
+        -- proveedor y consorcio aleatorios
         SELECT TOP 1 @proveedor_id = proveedor_id
         FROM prod.Proveedor
         WHERE borrado = 0
@@ -526,9 +528,30 @@ BEGIN
         WHERE borrado = 0
         ORDER BY NEWID();
 
+        IF @proveedor_id IS NULL OR @consorcio_id IS NULL
+            CONTINUE;
+
+        ----------------------------------------------------
+        -- NO repetir combinación proveedor/consorcio
+        ----------------------------------------------------
+        IF EXISTS (
+            SELECT 1
+            FROM prod.ProveedorConsorcio pc
+            WHERE pc.proveedor_id = @proveedor_id
+              AND pc.consorcio_id = @consorcio_id
+              AND pc.borrado = 0
+        )
+            CONTINUE;   -- ya existe esta pareja, probá otra
+
         SET @tipo_gasto = (SELECT TOP 1 v FROM (VALUES
-                            ('LIMPIEZA'),('LUZ'),('GAS'),
-                            ('HONORARIOS'),('MANTENIMIENTO')
+                            ('LIMPIEZA'),
+                            ('LUZ'),
+                            ('GAS'),
+                            ('HONORARIOS'),
+                            ('MANTENIMIENTO'),
+                            ('AGUA'),
+                            ('INTERNET'),
+                            ('SEGURO')
                           ) AS T(v) ORDER BY NEWID());
 
         SET @referencia = 'Ref ' + CAST(@creadas + 1 AS VARCHAR(10));
@@ -543,16 +566,17 @@ BEGIN
             SET @creadas += 1;
         END TRY
         BEGIN CATCH
-            -- choques con UQ_ProvCons, etc -> se ignoran
+            -- otros errores de negocio/constraint: se ignoran y se intenta otra combinación
         END CATCH;
     END
 
     IF @creadas < @cantidad
     BEGIN
-        RAISERROR('No se pudo generar la cantidad solicitada de proveedor-consorcio (conflictos de unicidad).',16,1);
+        RAISERROR('No se pudo generar la cantidad solicitada de proveedor-consorcio sin repetir combinación proveedor/consorcio.',16,1);
     END
 END;
 GO
+
 
 /* =========================================================
    8) TITULARIDADES ALEATORIAS (USA Persona.inquilino)
@@ -760,6 +784,7 @@ GO
 IF OBJECT_ID('prod.sp_CargarExtraordinariosAleatorios','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarExtraordinariosAleatorios;
 GO
+
 CREATE PROCEDURE prod.sp_CargarExtraordinariosAleatorios
     @cantidad INT
 AS
@@ -772,54 +797,78 @@ BEGIN
         RETURN;
     END;
 
-    DECLARE
-        @maxId              INT,
-        @i                  INT,
-        @fin                INT,
-        @expensa_id         INT,
-        @categoria          VARCHAR(50),
-        @total_cuotas       INT,
-        @cuota_actual       INT,
-        @importe_total      DECIMAL(12,2),
-        @valor_cuota_actual DECIMAL(12,2);
+    ----------------------------------------------------------------
+    -- 1) Pool de combinaciones válidas expensa + categoría
+    --    (no repetir misma categoría en la misma expensa/mes)
+    ----------------------------------------------------------------
+    ;WITH Categorias AS (
+        SELECT 'Refacción de hall'          AS categoria UNION ALL
+        SELECT 'Cambio de ascensor'                      UNION ALL
+        SELECT 'Impermeabilización terraza'              UNION ALL
+        SELECT 'Reparación cañerías'                     UNION ALL
+        SELECT 'Pintura general'
+    ),
+    Candidatos AS (
+        SELECT 
+            e.expensa_id,
+            c.categoria,
+            ROW_NUMBER() OVER (ORDER BY NEWID()) AS rn
+        FROM prod.Expensa e
+        CROSS JOIN Categorias c
+        WHERE e.borrado = 0
+          AND NOT EXISTS (
+                SELECT 1
+                FROM prod.Extraordinarios x
+                WHERE x.expensa_id = e.expensa_id
+                  AND x.categoria  = c.categoria
+                  AND x.borrado    = 0
+          )
+    )
+    ----------------------------------------------------------------
+    -- 2) Inserto TOP(@cantidad) sin duplicar expensa+categoria
+    ----------------------------------------------------------------
+    INSERT INTO prod.Extraordinarios(
+        expensa_id,
+        categoria,
+        total_cuotas,
+        cuota_actual,
+        valor_cuota_actual,
+        borrado
+    )
+    SELECT TOP (@cantidad)
+        cand.expensa_id,
+        cand.categoria,
+        calc.total_cuotas,
+        calc.cuota_actual,
+        calc.valor_cuota,
+        0
+    FROM Candidatos cand
+    CROSS APPLY (
+        SELECT
+            CAST(ABS(CHECKSUM(NEWID())) % 10 + 1 AS INT) AS total_cuotas,
+            CAST(ABS(CHECKSUM(NEWID())) % 10 + 1 AS INT) AS cuota_tmp,
+            CAST(ABS(CHECKSUM(NEWID())) % 300000 + 10000 AS DECIMAL(12,2)) AS importe_total
+    ) r
+    CROSS APPLY (
+        SELECT
+            r.total_cuotas                                       AS total_cuotas,
+            CASE WHEN r.cuota_tmp > r.total_cuotas 
+                 THEN r.total_cuotas 
+                 ELSE r.cuota_tmp 
+            END                                                  AS cuota_actual,
+            ROUND(r.importe_total / r.total_cuotas, 2)           AS valor_cuota
+    ) calc
+    ORDER BY cand.rn;
 
-    SELECT @maxId = ISNULL(MAX(gasto_id_extra),0)
-    FROM prod.Extraordinarios;
+    DECLARE @insertadas INT = @@ROWCOUNT;
 
-    SET @i   = @maxId + 1;
-    SET @fin = @i + @cantidad - 1;
-
-    WHILE @i <= @fin
-    BEGIN
-        SELECT TOP 1 @expensa_id = expensa_id
-        FROM prod.Expensa
-        WHERE borrado = 0
-        ORDER BY NEWID();
-
-        SET @categoria = (SELECT TOP 1 v FROM (VALUES
-                            ('Refacción de hall'),
-                            ('Cambio de ascensor'),
-                            ('Impermeabilización terraza'),
-                            ('Reparación cañerías'),
-                            ('Pintura general')
-                          ) AS C(v) ORDER BY NEWID());
-
-        SET @total_cuotas  = ABS(CHECKSUM(NEWID())) % 10 + 1;
-        SET @cuota_actual  = ABS(CHECKSUM(NEWID())) % @total_cuotas + 1;
-        SET @importe_total = CAST(ABS(CHECKSUM(NEWID())) % 300000 + 10000 AS DECIMAL(12,2));
-        SET @valor_cuota_actual = ROUND(@importe_total / @total_cuotas, 2);
-
-        EXEC prod.sp_AltaExtraordinario
-             @expensa_id,
-             @categoria,
-             @total_cuotas,
-             @cuota_actual,
-             @valor_cuota_actual;
-
-        SET @i += 1;
-    END
+    --PRINT 'sp_CargarExtraordinariosAleatorios -> Solicitados: '
+    --      + CAST(@cantidad AS VARCHAR(10))
+    --      + ' / Insertados: '
+    --      + CAST(@insertadas AS VARCHAR(10));
 END;
 GO
+
 
 /* =========================================================
    11) ORDINARIOS ALEATORIOS 
@@ -827,12 +876,16 @@ GO
 IF OBJECT_ID('prod.sp_CargarOrdinariosAleatorios','P') IS NOT NULL
     DROP PROCEDURE prod.sp_CargarOrdinariosAleatorios;
 GO
+
 CREATE PROCEDURE prod.sp_CargarOrdinariosAleatorios
     @cantidad INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
+    ----------------------------------------------------
+    -- 1) Validaciones básicas
+    ----------------------------------------------------
     IF NOT EXISTS (SELECT 1 FROM prod.Expensa WHERE borrado = 0)
        OR NOT EXISTS (SELECT 1 FROM prod.ProveedorConsorcio WHERE borrado = 0)
     BEGIN
@@ -840,54 +893,102 @@ BEGIN
         RETURN;
     END;
 
+    ----------------------------------------------------
+    -- 2) Bucle aleatorio: para cada gasto elegir
+    --    una expensa y un (pc_id) tal que:
+    --      - ese proveedor NO se haya usado en la expensa
+    --      - ese tipo_gasto NO se haya usado en la expensa
+    ----------------------------------------------------
     DECLARE
-        @maxId              INT,
-        @i                  INT,
-        @fin                INT,
-        @expensa_id         INT,
-        @pc_id              INT,
-        @importe            DECIMAL(12,2),
-        @tipo_gasto_ordinario VARCHAR(50),
-        @nro_factura        VARCHAR(50);
+        @creados       INT = 0,
+        @intentos      INT = 0,
+        @max_intentos  INT = @cantidad * 30,
+        @expensa_id    INT,
+        @consorcio_id  INT,
+        @pc_id         INT,
+        @proveedor_id  INT,
+        @tipo_gasto    VARCHAR(80),
+        @importe       DECIMAL(12,2),
+        @nro_factura   VARCHAR(50);
 
-    SELECT @maxId = ISNULL(MAX(gasto_ord_id),0)
-    FROM prod.Ordinarios;
-
-    SET @i   = @maxId + 1;
-    SET @fin = @i + @cantidad - 1;
-
-    WHILE @i <= @fin
+    WHILE @creados < @cantidad AND @intentos < @max_intentos
     BEGIN
-        SELECT TOP 1 @expensa_id = expensa_id
-        FROM prod.Expensa WHERE borrado = 0 ORDER BY NEWID();
+        SET @intentos += 1;
 
-        SELECT TOP 1 @pc_id = pc_id
-        FROM prod.ProveedorConsorcio WHERE borrado = 0 ORDER BY NEWID();
+        -- Expensa aleatoria
+        SELECT TOP 1
+               @expensa_id   = e.expensa_id,
+               @consorcio_id = e.consorcio_id
+        FROM prod.Expensa e
+        WHERE e.borrado = 0
+        ORDER BY NEWID();
 
+        IF @expensa_id IS NULL
+            CONTINUE;
+
+        ------------------------------------------------
+        -- Elegir UN proveedor-consorcio (pc) tal que
+        --   * proveedor NO usado ya en esta expensa
+        --   * tipo_gasto NO usado ya en esta expensa
+        ------------------------------------------------
+        SELECT TOP 1
+               @pc_id        = pc.pc_id,
+               @proveedor_id = pc.proveedor_id,
+               @tipo_gasto   = pc.tipo_gasto
+        FROM prod.ProveedorConsorcio pc
+        WHERE pc.borrado     = 0
+          AND pc.consorcio_id = @consorcio_id
+          AND NOT EXISTS (
+                SELECT 1
+                FROM prod.Ordinarios o
+                JOIN prod.ProveedorConsorcio pc2
+                  ON pc2.pc_id = o.pc_id
+                WHERE o.expensa_id = @expensa_id
+                  AND o.borrado   = 0
+                  AND (
+                        pc2.proveedor_id = pc.proveedor_id
+                     OR pc2.tipo_gasto   = pc.tipo_gasto
+                      )
+          )
+        ORDER BY NEWID();
+
+        -- No encontré combinación libre para esa expensa ? intento de nuevo
+        IF @pc_id IS NULL
+            CONTINUE;
+
+        ------------------------------------------------
+        -- Datos aleatorios del gasto
+        ------------------------------------------------
         SET @importe = CAST(ABS(CHECKSUM(NEWID())) % 100000 + 1000 AS DECIMAL(12,2));
+        SET @nro_factura = 'OR-' + RIGHT('000000' + CAST(@creados+1 AS VARCHAR(6)), 6)
+                           + '-' + RIGHT('0000' + CAST(ABS(CHECKSUM(NEWID())) % 10000 AS VARCHAR(4)), 4);
 
-        SET @tipo_gasto_ordinario = (SELECT TOP 1 v FROM (VALUES
-                                ('LIMPIEZA MENSUAL'),
-                                ('LUZ COMÚN'),
-                                ('AGUA'),
-                                ('MANTENIMIENTO ASCENSOR'),
-                                ('HONORARIOS ADM')
-                              ) AS T(v) ORDER BY NEWID());
-
-        SET @nro_factura = 'OR-' + CAST(@i AS VARCHAR(10))
-                           + '-' + CAST(ABS(CHECKSUM(NEWID())) % 10000 AS VARCHAR(10));
-
+        ------------------------------------------------
+        -- Insertar el gasto ordinario
+        ------------------------------------------------
         EXEC prod.sp_AltaOrdinario
              @expensa_id,
              @pc_id,
-             @tipo_gasto_ordinario,
+             @tipo_gasto,
              @nro_factura,
              @importe;
 
-        SET @i += 1;
+        -- Si el SP de alta falla por alguna validación interna,
+        -- no queremos cortar el lote
+        IF @@ERROR = 0
+            SET @creados += 1;
+    END
+
+    IF @creados < @cantidad
+    BEGIN
+        PRINT 'Aviso: solo se generaron '
+              + CAST(@creados AS VARCHAR(10))
+              + ' gastos ordinarios (no quedaban combinaciones únicas de proveedor/tipo por expensa).';
     END
 END;
 GO
+
+
 
 /* =========================================================
    12) FACTURAS ALEATORIAS 
@@ -1054,6 +1155,11 @@ EXEC prod.sp_CargarExpensasAleatorias
      @anio_desde = @anio_desde,
      @anio_hasta = @anio_hasta;
 
+--DECLARE 
+--    @anio_desde   INT = 2024,
+--    @anio_hasta   INT = 2025,
+--    @fecha_desdeP DATE,
+--    @fecha_hastaP DATE;
 PRINT '9) Cargar Pagos...';
 EXEC prod.sp_CargarPagosAleatorios 
      @cantidad    = 100,
@@ -1101,15 +1207,9 @@ EXEC prod.sp_CargarOrdinariosAleatorios @cantidad = 100;
 --------------------------------------------------
 -- 6) Pagos, Extraordinarios, Ordinarios, Facturas, Moras
 --------------------------------------------------
---DECLARE 
---    @anio_desde   INT = 2024,
---    @anio_hasta   INT = 2025,
---    @fecha_desdeP DATE,
---    @fecha_hastaP DATE;
 
 -- Fechas para los pagos (desde 1/1/año_desde hasta 31/12/año_hasta)
---SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
---SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
+
 
 
 --PRINT '12) Cargar Facturas...';

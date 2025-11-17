@@ -453,3 +453,78 @@ BEGIN
     WHERE rn = 5;
 END;
 GO
+
+IF OBJECT_ID('prod.sp_AjustarADiaHabilConFeriados','P') IS NOT NULL
+    DROP PROCEDURE prod.sp_AjustarADiaHabilConFeriados;
+GO
+
+CREATE PROCEDURE prod.sp_AjustarADiaHabilConFeriados
+    @fecha_in  DATE,
+    @fecha_out DATE OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE 
+        @anio INT = YEAR(@fecha_in),
+        @json NVARCHAR(MAX) = NULL,
+        @obj  INT,
+        @url  NVARCHAR(200);
+
+    SET @fecha_out = @fecha_in;
+
+    -----------------------------------------------------
+    -- 1) Llamar API Argentinadatos para ese AÑO
+    -----------------------------------------------------
+    SET @url = N'https://api.argentinadatos.com/v1/feriados/'
+               + CONVERT(VARCHAR(4), @anio);
+
+    BEGIN TRY
+        EXEC sp_OACreate 'MSXML2.XMLHTTP', @obj OUT;
+        EXEC sp_OAMethod @obj, 'open', NULL, 'GET', @url, 'false';
+        EXEC sp_OAMethod @obj, 'send';
+        EXEC sp_OAMethod @obj, 'responseText', @json OUTPUT;
+        EXEC sp_OADestroy @obj;
+    END TRY
+    BEGIN CATCH
+        SET @json = NULL;
+        IF @obj IS NOT NULL EXEC sp_OADestroy @obj;
+    END CATCH;
+
+    -----------------------------------------------------
+    -- 2) Feriados en tabla variable (si API OK)
+    -----------------------------------------------------
+    DECLARE @Feriados TABLE(fecha DATE);
+
+    IF @json IS NOT NULL AND ISJSON(@json) = 1
+    BEGIN
+        INSERT INTO @Feriados(fecha)
+        SELECT CONVERT(date, fecha)
+        FROM OPENJSON(@json)
+        WITH (fecha NVARCHAR(10) '$.fecha');
+    END
+
+    -----------------------------------------------------
+    -- 3) Bucle: avanzar hasta encontrar día hábil
+    --     - si @Feriados está vacío: solo salteo sábados y domingos
+    -----------------------------------------------------
+    WHILE 1 = 1
+    BEGIN
+        IF DATENAME(WEEKDAY, @fecha_out) IN ('Saturday', 'Sunday')
+        BEGIN
+            SET @fecha_out = DATEADD(DAY, 1, @fecha_out);
+            CONTINUE;
+        END;
+
+        -- Si hay feriados cargados, también evito esos días
+        IF EXISTS (SELECT 1 FROM @Feriados f WHERE f.fecha = @fecha_out)
+        BEGIN
+            SET @fecha_out = DATEADD(DAY, 1, @fecha_out);
+            CONTINUE;
+        END;
+
+        BREAK;  -- es día hábil
+    END;
+END;
+GO
+

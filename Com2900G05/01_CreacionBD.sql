@@ -62,10 +62,9 @@ GO
 USE COM2900G05;
 GO
 
+-- Se habilitan configuraciones para el manejo de API
 EXEC sp_configure 'show advanced options', 1;
 RECONFIGURE;
 EXEC sp_configure 'Ole Automation Procedures', 1;
-RECONFIGURE;
-
 RECONFIGURE;
 GO

@@ -1,4 +1,4 @@
-USE Com2900G05;
+USE COM2900G05;
 GO
 
 IF OBJECT_ID('prod.sp_GenerarExpensaYProrrateo','P') IS NOT NULL
@@ -29,7 +29,7 @@ BEGIN
     END;
 
     ------------------------------------------------------------------
-    -- 2) Asegurar existencia de EXPENSA (usa sp_AltaExpensa)
+    -- 2) Asegurar existencia de EXPENSA usando sp_AltaExpensa
     ------------------------------------------------------------------
     DECLARE
         @periodo    DATE,
@@ -37,62 +37,40 @@ BEGIN
         @venc1      DATE,
         @venc2      DATE;
 
-    ------------------------------------------------------------------
-    -- 2.a) Obtener quinto día hábil del mes @anio/@mes
-    ------------------------------------------------------------------
-    DECLARE @tQuinto TABLE(QuintoDiaHabil DATE);
-    DECLARE @fechaQuinto DATE;
-
-    INSERT INTO @tQuinto(QuintoDiaHabil)
-    EXEC prod.sp_ObtenerQuintoDiaHabilConFeriados @anio = @anio, @mes = @mes;
-
-    SELECT TOP 1 @fechaQuinto = QuintoDiaHabil
-    FROM @tQuinto;
-
-    ------------------------------------------------------------------
-    -- 2.b) Período: usar ese día hábil como día del período
-    ------------------------------------------------------------------
-    IF @fechaQuinto IS NULL
-    BEGIN
-        -- fallback improbable, pero por las dudas:
-        SET @periodo = DATEFROMPARTS(@anio, @mes, 5);
-    END
-    ELSE
-    BEGIN
-        SET @periodo = @fechaQuinto;
-    END
-
-
-    -- ¿ya existe la expensa?
+    -- ¿ya existe la expensa para ese año/mes?
     SELECT 
         @expensa_id = e.expensa_id,
+        @periodo    = e.periodo,
         @venc1      = e.vencimiento1,
         @venc2      = e.vencimiento2
     FROM prod.Expensa e
     WHERE e.consorcio_id = @consorcio_id
-      AND e.periodo      = @periodo
-      AND e.borrado      = 0;
+      AND e.borrado      = 0
+      AND YEAR(e.periodo) = @anio
+      AND MONTH(e.periodo) = @mes;
 
     IF @expensa_id IS NULL
     BEGIN
-        DECLARE @t TABLE(expensa_id INT);
-
-        INSERT INTO @t(expensa_id)
+        -- crea la expensa (adentro calcula quinto día hábil y vencimientos)
         EXEC prod.sp_AltaExpensa
              @consorcio_id = @consorcio_id,
              @anio         = @anio,
              @mes          = @mes,
-             @total        = NULL,   -- se recalcula acá
+             @total        = NULL,   -- lo recalculás al final
              @dias_vto1    = 10,
              @dias_vto2    = 20;
 
-        SELECT @expensa_id = expensa_id FROM @t;
-
+        -- volver a leer la expensa recién creada
         SELECT 
-            @venc1 = vencimiento1,
-            @venc2 = vencimiento2
-        FROM prod.Expensa
-        WHERE expensa_id = @expensa_id;
+            @expensa_id = e.expensa_id,
+            @periodo    = e.periodo,
+            @venc1      = e.vencimiento1,
+            @venc2      = e.vencimiento2
+        FROM prod.Expensa e
+        WHERE e.consorcio_id = @consorcio_id
+          AND e.borrado      = 0
+          AND YEAR(e.periodo) = @anio
+          AND MONTH(e.periodo) = @mes;
     END;
 
     ------------------------------------------------------------------
@@ -416,7 +394,8 @@ BEGIN
     FROM #Prorrateo p
     WHERE p.Deuda > 0.00;
 
-    -- 8.4 LISTADO DE GASTOS ORDINARIOS (item 4)
+        -- 8.4 LISTADO DE GASTOS ORDINARIOS (item 4)
+    --    Un solo registro por proveedor en la expensa
     INSERT INTO #Archivo1(
         tipo_registro, consorcio_id, consorcio_nombre, periodo,
         detalle, importe
@@ -428,21 +407,32 @@ BEGIN
         @periodo,
         CONCAT(
             'Proveedor: ', pr.nombre,
-            ' - Tipo: ', o.tipo_gasto_ordinario,
-            CASE WHEN o.nro_factura IS NOT NULL
-                 THEN ' - Factura: ' + o.nro_factura
-                 ELSE '' END
-        ),
-        o.importe
+            ' - Tipos: ',
+            STUFF((
+                SELECT DISTINCT
+                       ', ' + o2.tipo_gasto_ordinario
+                FROM prod.Ordinarios o2
+                JOIN prod.ProveedorConsorcio pc2
+                  ON pc2.pc_id = o2.pc_id
+                 AND pc2.proveedor_id = pr.proveedor_id
+                 AND pc2.borrado = 0
+                WHERE o2.expensa_id = @expensa_id
+                  AND o2.borrado    = 0
+                FOR XML PATH(''), TYPE
+            ).value('.', 'nvarchar(max)'), 1, 2, '')
+        ) AS detalle,
+        SUM(o.importe) AS importe
     FROM prod.Ordinarios o
     JOIN prod.ProveedorConsorcio pc
       ON pc.pc_id = o.pc_id
+     AND pc.borrado = 0
     JOIN prod.Proveedor pr
       ON pr.proveedor_id = pc.proveedor_id
+     AND pr.borrado = 0
     WHERE o.expensa_id = @expensa_id
       AND o.borrado    = 0
-      AND pc.borrado   = 0
-      AND pr.borrado   = 0;
+    GROUP BY pr.proveedor_id, pr.nombre;
+
 
     -- 8.5 LISTADO DE GASTOS EXTRAORDINARIOS (item 5)
     INSERT INTO #Archivo1(
@@ -561,6 +551,8 @@ BEGIN
     FROM prod.Expensa e
     WHERE e.expensa_id = @expensa_id;
 
+    SELECT @expensa_id FROM prod.Expensa WHERE expensa_id=@expensa_id
+
 END;
 GO
 
@@ -568,7 +560,7 @@ GO
 EXEC prod.sp_GenerarExpensaYProrrateo 
      @consorcio_id = 1, 
      @anio = 2025, 
-     @mes  = 06;
+     @mes  = 07;
 
 -- 1) Ver cuántas expensas tiene ese consorcio y sus períodos
 --SELECT expensa_id, periodo
