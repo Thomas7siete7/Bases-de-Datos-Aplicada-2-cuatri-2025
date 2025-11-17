@@ -49,34 +49,29 @@ EXEC prod.Reporte_FlujoCajaSemanal
 */
 
 -- Consorcio 1
-EXEC prod.Reporte_RecaudacionPorMesDepartamento
-    @ConsorcioId = 1,
-    @AnioDesde   = 2025,
-    @AnioHasta   = 2025;
+EXEC prod.Reporte_RecaudacionPorUFyMes
+     @ConsorcioId = 1,
+     @Anio = 2025;
 
 -- Consorcio 2
-EXEC prod.Reporte_RecaudacionPorMesDepartamento
-    @ConsorcioId = 2,
-    @AnioDesde   = 2025,
-    @AnioHasta   = 2025;
+EXEC prod.Reporte_RecaudacionPorUFyMes
+     @ConsorcioId = 2,
+     @Anio = 2025;
 
 -- Consorcio 3
-EXEC prod.Reporte_RecaudacionPorMesDepartamento
-    @ConsorcioId = 3,
-    @AnioDesde   = 2025,
-    @AnioHasta   = 2025;
+EXEC prod.Reporte_RecaudacionPorUFyMes
+     @ConsorcioId = 3,
+     @Anio = 2025;
 
 -- Consorcio 4
-EXEC prod.Reporte_RecaudacionPorMesDepartamento
-    @ConsorcioId = 4,
-    @AnioDesde   = 2025,
-    @AnioHasta   = 2025;
+EXEC prod.Reporte_RecaudacionPorUFyMes
+     @ConsorcioId = 4,
+     @Anio = 2025;
 
 -- Consorcio 5
-EXEC prod.Reporte_RecaudacionPorMesDepartamento
-    @ConsorcioId = 5,
-    @AnioDesde   = 2025,
-    @AnioHasta   = 2025;
+EXEC prod.Reporte_RecaudacionPorUFyMes
+     @ConsorcioId = 5,
+     @Anio = 2025;
 
 /*
 ==============================
@@ -166,7 +161,7 @@ EXEC prod.Reporte_5Meses_MayoresGastosIngresos
 ==============================
 */
 
--- Top 3 propietarios m·s morosos de todo el sistema
+-- Top 3 propietarios m√°s morosos de todo el sistema
 EXEC prod.Reporte_PropietariosMayorMorosidad
      @ConsorcioId = NULL,
      @FechaDesde  = '2023-01-01',
