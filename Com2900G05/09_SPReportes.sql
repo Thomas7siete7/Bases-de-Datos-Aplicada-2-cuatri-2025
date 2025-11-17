@@ -20,7 +20,7 @@ BEGIN
     IF @FechaDesde IS NULL SET @FechaDesde = '2000-01-01';
     IF @FechaHasta IS NULL SET @FechaHasta = '2100-12-31';
 
-    /* 1) Composición de cada expensa: cuánto es ordinario y cuanto es extraordinario */
+    /* 1) ComposiciÃ³n de cada expensa: cuÃ¡nto es ordinario y cuanto es extraordinario */
     ;WITH TotalesConcepto AS
     (
         SELECT
@@ -38,7 +38,7 @@ BEGIN
         GROUP BY e.expensa_id
     ),
 
-    /* 2) Clasifico cada pago en parte ordinaria y extraordinaria según esa composición */
+    /* 2) Clasifico cada pago en parte ordinaria y extraordinaria segÃºn esa composiciÃ³n */
     PagosClasificados AS
     (
         SELECT
@@ -72,13 +72,13 @@ BEGIN
             ON t.expensa_id = e.expensa_id
         WHERE p.borrado = 0
           AND e.borrado = 0
-          AND p.estado IN ('APLICADO','ASOCIADO')   -- podés ajustar acá
+          AND p.estado IN ('APLICADO','ASOCIADO')   -- podÃ©s ajustar acÃ¡
           AND p.fecha >= @FechaDesde
           AND p.fecha < DATEADD(DAY, 1, @FechaHasta)
           AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
     ),
 
-    /* 3) Agrupo por semana (año + ISO_WEEK) y sumo recaudación */
+    /* 3) Agrupo por semana (aÃ±o + ISO_WEEK) y sumo recaudaciÃ³n */
     PorSemana AS
     (
         SELECT
@@ -117,36 +117,35 @@ GO
 ==============================
 */
 
-CREATE OR ALTER PROCEDURE prod.Reporte_RecaudacionPorMesDepartamento
+CREATE OR ALTER PROCEDURE prod.Reporte_RecaudacionPorUFyMes
 (
     @ConsorcioId INT = NULL,
-    @AnioDesde   INT = NULL,
-    @AnioHasta   INT = NULL
+    @Anio INT = NULL
 )
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF @AnioDesde IS NULL SET @AnioDesde = YEAR(GETDATE());
-    IF @AnioHasta IS NULL SET @AnioHasta = @AnioDesde;
+    IF @Anio IS NULL SET @Anio = YEAR(GETDATE());
 
-    --------------------------------------------------------------------
-    -- 1) Columnas dinámicas: lista de departamentos (A, B, C, …)
-    --------------------------------------------------------------------
-    DECLARE @cols NVARCHAR(MAX);
+    -------------------------------------------------------------
+    -- 1. Columnas fijas con nombres de meses
+    -------------------------------------------------------------
+    DECLARE @cols NVARCHAR(MAX) =
+        '[Enero],[Febrero],[Marzo],[Abril],[Mayo],[Junio],'+
+        '[Julio],[Agosto],[Septiembre],[Octubre],[Noviembre],[Diciembre]';
 
-    SELECT @cols = STRING_AGG(QUOTENAME(d.UFLabel), ',')
+    SELECT @cols = STRING_AGG(QUOTENAME(d.depto), ',')
     FROM (
-    SELECT DISTINCT (uf.piso + '-' + uf.depto) AS UFLabel
-    FROM prod.UnidadFuncional uf
-    WHERE uf.borrado = 0
-      AND (@ConsorcioId IS NULL OR uf.consorcio_id = @ConsorcioId)
+        SELECT DISTINCT uf.depto
+        FROM prod.UnidadFuncional uf
+        WHERE uf.borrado = 0
+          AND (@ConsorcioId IS NULL OR uf.consorcio_id = @ConsorcioId)
     ) d;
-
 
     IF @cols IS NULL
     BEGIN
-        -- No hay UF para ese consorcio: devolvemos schema vacío
+        -- No hay UF para ese consorcio: devolvemos schema vacÃ­o
         SELECT 
             CAST(NULL AS INT) AS Anio,
             CAST(NULL AS INT) AS Mes
@@ -155,56 +154,60 @@ BEGIN
     END;
 
     --------------------------------------------------------------------
-    -- 2) SQL dinámico con PIVOT por depto
+    -- 2) SQL dinÃ¡mico con PIVOT por depto
     --------------------------------------------------------------------
     DECLARE @sql NVARCHAR(MAX);
 
     SET @sql = '
-;WITH Base AS
-(
+    ;WITH PagosUF AS
+    (
+        SELECT
+            uf.uf_id,
+            uf.piso,
+            uf.depto,
+            DATENAME(MONTH, p.fecha) AS MesNombre,
+            p.importe
+        FROM prod.Pago p
+        INNER JOIN prod.Persona per
+            ON per.cbu_cvu = p.cbu_cvu_origen
+           AND per.borrado = 0
+        INNER JOIN prod.Titularidad t
+            ON t.persona_id = per.persona_id
+           AND t.fecha_desde <= p.fecha
+           AND (t.fecha_hasta IS NULL OR t.fecha_hasta >= p.fecha)
+        INNER JOIN prod.UnidadFuncional uf
+            ON uf.uf_id = t.uf_id
+           AND uf.borrado = 0
+        INNER JOIN prod.Expensa e
+            ON e.expensa_id = p.expensa_id
+           AND e.borrado = 0
+        WHERE p.borrado = 0
+          AND p.estado IN (''APLICADO'', ''ASOCIADO'')
+          AND YEAR(p.fecha) = @Anio
+          AND (@ConsorcioId IS NULL OR uf.consorcio_id = @ConsorcioId)
+    )
     SELECT
-        YEAR(p.fecha) AS Anio,
-        MONTH(p.fecha) AS Mes,
-        uf.piso + ''-'' + uf.depto AS UFLabel,
-        p.importe
-    FROM prod.Pago p
-    INNER JOIN prod.Expensa e
-        ON e.expensa_id = p.expensa_id
-       AND e.borrado = 0
-    INNER JOIN prod.Persona per
-        ON per.cbu_cvu = p.cbu_cvu_origen
-       AND per.borrado = 0
-    INNER JOIN prod.Titularidad t
-        ON t.persona_id = per.persona_id
-       AND t.fecha_desde <= p.fecha
-       AND (t.fecha_hasta IS NULL OR t.fecha_hasta >= p.fecha)
-    INNER JOIN prod.UnidadFuncional uf
-        ON uf.uf_id = t.uf_id
-       AND uf.borrado = 0
-    WHERE p.borrado = 0
-      AND p.estado IN (''APLICADO'',''ASOCIADO'')
-      AND YEAR(p.fecha) BETWEEN @AnioDesde AND @AnioHasta
-      AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
-)
-SELECT
-    Anio,
-    Mes, ' + @cols + '
-FROM Base
-PIVOT
-(
-    SUM(importe) FOR UFLabel IN (' + @cols + ')
-) AS pvt
-ORDER BY Anio, Mes;';
+        uf_id,
+        piso,
+        depto,
+        ' + @cols + '
+    FROM
+        (SELECT uf_id, piso, depto, MesNombre, importe FROM PagosUF) AS src
+    PIVOT
+    (
+        SUM(importe) FOR MesNombre IN (' + @cols + ')
+    ) AS pvt
+    ORDER BY uf_id;
+    ';
 
-    --------------------------------------------------------------------
-    -- 3) Ejecutar con parámetros
-    --------------------------------------------------------------------
+    -------------------------------------------------------------
+    -- 3. Ejecutar SQL con parÃ¡metros
+    -------------------------------------------------------------
     EXEC sp_executesql
         @sql,
-        N'@AnioDesde INT, @AnioHasta INT, @ConsorcioId INT',
-        @AnioDesde = @AnioDesde,
-        @AnioHasta = @AnioHasta,
-        @ConsorcioId = @ConsorcioId;
+        N'@ConsorcioId INT, @Anio INT',
+        @ConsorcioId = @ConsorcioId,
+        @Anio = @Anio;
 END;
 GO
 
@@ -303,14 +306,14 @@ BEGIN
             ON t.expensa_id = e.expensa_id
         WHERE p.borrado = 0
           AND e.borrado = 0
-          AND p.estado IN ('APLICADO','ASOCIADO')   -- pagos válidos
+          AND p.estado IN ('APLICADO','ASOCIADO')   -- pagos vÃ¡lidos
           AND p.fecha >= @FechaDesde
           AND p.fecha < DATEADD(DAY, 1, @FechaHasta)
           AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
     ),
 
     --------------------------------------------------------------------
-    -- 3) Agrego por período (Año/Mes) y procedencia
+    -- 3) Agrego por perÃ­odo (AÃ±o/Mes) y procedencia
     --------------------------------------------------------------------
     PorPeriodo AS
     (
@@ -490,7 +493,7 @@ BEGIN
 
     --------------------------------------------------------------------
     -- 2) Distribuimos cada registro de Mora entre todas las UF del consorcio
-    --    según el coeficiente de cada UF
+    --    segÃºn el coeficiente de cada UF
     --------------------------------------------------------------------
     MoraDistribuida AS
     (
