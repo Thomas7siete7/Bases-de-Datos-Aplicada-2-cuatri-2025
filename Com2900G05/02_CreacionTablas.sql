@@ -368,7 +368,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @json NVARCHAR(MAX) = NULL;
+    DECLARE @json NVARCHAR(4000);  -- o VARCHAR(8000), pero NO MAX
     DECLARE @obj  INT;
     DECLARE @url  NVARCHAR(200);
 
@@ -389,6 +389,7 @@ BEGIN
         SET @json = NULL;
         IF @obj IS NOT NULL EXEC sp_OADestroy @obj; 
     END CATCH;
+
 
     -----------------------------------------------------
     -- 2) Si la API NO responde ? fallback SIN feriados
@@ -467,7 +468,7 @@ BEGIN
 
     DECLARE 
         @anio INT = YEAR(@fecha_in),
-        @json NVARCHAR(MAX) = NULL,
+        @json NVARCHAR(4000),
         @obj  INT,
         @url  NVARCHAR(200);
 

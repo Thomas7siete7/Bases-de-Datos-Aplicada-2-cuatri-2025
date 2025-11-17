@@ -2,7 +2,7 @@ USE COM2900G05
 GO
 
 SELECT * FROM prod.Consorcio
-SELECT * FROM prod.Expensa --order by consorcio_id
+SELECT * FROM prod.Expensa 
 SELECT * FROM prod.Extraordinarios
 SELECT * FROM prod.Factura 
 SELECT * FROM prod.Mora 
@@ -14,7 +14,6 @@ SELECT * FROM prod.ProveedorConsorcio --where consorcio_id = 1--order by proveed
 SELECT * FROM prod.Titularidad  
 SELECT * FROM prod.UnidadAccesoria 
 SELECT * FROM prod.UnidadFuncional 
-
 
 
 

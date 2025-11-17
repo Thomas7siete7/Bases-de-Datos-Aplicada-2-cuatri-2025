@@ -1037,27 +1037,42 @@ BEGIN
   FROM #Srv2R r;
 
   -------------------------------------------------------------------------
-  -- 5.a) Obtener 5° día hábil del mes (@anio, mes_num)
+  -- 5.a) Obtener 5° día hábil del mes (@anio, mes_num) SIN CURSORES
   -------------------------------------------------------------------------
   IF OBJECT_ID('tempdb..#QuintoDiaHabil', 'U') IS NOT NULL DROP TABLE #QuintoDiaHabil;
   CREATE TABLE #QuintoDiaHabil(
-      mes_num      INT PRIMARY KEY,
-      quinto_dia   DATE NOT NULL
+      mes_num    INT PRIMARY KEY,
+      quinto_dia DATE NOT NULL
   );
 
-  DECLARE
-      @mes         INT,
-      @fecha_q5    DATE;
+  -- Tabla auxiliar de meses distintos de #Tot
+  IF OBJECT_ID('tempdb..#Meses', 'U') IS NOT NULL DROP TABLE #Meses;
+  CREATE TABLE #Meses(
+      id      INT IDENTITY(1,1) PRIMARY KEY,
+      mes_num INT
+  );
+
+  INSERT INTO #Meses(mes_num)
+  SELECT DISTINCT mes_num
+  FROM #Tot;
+
+  DECLARE 
+      @curId     INT,
+      @maxMesId  INT,
+      @mes       INT,
+      @fecha_q5  DATE;
 
   DECLARE @TmpQ TABLE(QuintoDiaHabil DATE);
 
-  DECLARE curMes CURSOR LOCAL FAST_FORWARD FOR
-      SELECT DISTINCT mes_num FROM #Tot;
+  SELECT @maxMesId = MAX(id) FROM #Meses;
+  SET @curId = 1;
 
-  OPEN curMes;
-  FETCH NEXT FROM curMes INTO @mes;
-  WHILE @@FETCH_STATUS = 0
+  WHILE @maxMesId IS NOT NULL AND @curId <= @maxMesId
   BEGIN
+      SELECT @mes = mes_num
+      FROM #Meses
+      WHERE id = @curId;
+
       DELETE FROM @TmpQ;
 
       INSERT INTO @TmpQ(QuintoDiaHabil)
@@ -1065,16 +1080,14 @@ BEGIN
           @anio = @anio,
           @mes  = @mes;
 
-      SELECT @fecha_q5 = QuintoDiaHabil FROM @TmpQ;
+      SELECT @fecha_q5 = QuintoDiaHabil
+      FROM @TmpQ;
 
       INSERT INTO #QuintoDiaHabil(mes_num, quinto_dia)
       VALUES(@mes, @fecha_q5);
 
-      FETCH NEXT FROM curMes INTO @mes;
-  END
-
-  CLOSE curMes;
-  DEALLOCATE curMes;
+      SET @curId = @curId + 1;
+  END;
 
   -- Asignar el periodo de la expensa = 5° día hábil
   UPDATE t
@@ -1091,47 +1104,56 @@ BEGIN
          vto2 = DATEADD(DAY, 20, periodo);
 
   -------------------------------------------------------------------------
-  -- 5.c) Ajustar vencimientos a día hábil (con feriados)
+  -- 5.c) Ajustar vencimientos a día hábil (con feriados) SIN CURSORES
   -------------------------------------------------------------------------
   DECLARE
-      @id      INT,
-      @vto1    DATE,
-      @vto2    DATE,
+      @id       INT,
+      @maxId    INT,
+      @vto1     DATE,
+      @vto2     DATE,
       @ajustada DATE;
 
-  DECLARE curVto CURSOR LOCAL FAST_FORWARD FOR
-      SELECT id, vto1, vto2
-      FROM #Tot;
+  SELECT @maxId = MAX(id) FROM #Tot;
+  SET @id = 1;
 
-  OPEN curVto;
-  FETCH NEXT FROM curVto INTO @id, @vto1, @vto2;
-  WHILE @@FETCH_STATUS = 0
+  WHILE @maxId IS NOT NULL AND @id <= @maxId
   BEGIN
-      -- Ajustar vencimiento1
-      SET @ajustada = NULL;
-      EXEC prod.sp_AjustarADiaHabilConFeriados
-          @fecha_in  = @vto1,
-          @fecha_out = @ajustada OUTPUT;
+      SELECT 
+          @vto1 = vto1,
+          @vto2 = vto2
+      FROM #Tot
+      WHERE id = @id;
 
-      UPDATE #Tot
-         SET vto1 = @ajustada
-       WHERE id = @id;
+      -- Ajustar vencimiento1
+      IF @vto1 IS NOT NULL
+      BEGIN
+          SET @ajustada = NULL;
+
+          EXEC prod.sp_AjustarADiaHabilConFeriados
+              @fecha_in  = @vto1,
+              @fecha_out = @ajustada OUTPUT;
+
+          UPDATE #Tot
+             SET vto1 = @ajustada
+           WHERE id = @id;
+      END;
 
       -- Ajustar vencimiento2
-      SET @ajustada = NULL;
-      EXEC prod.sp_AjustarADiaHabilConFeriados
-          @fecha_in  = @vto2,
-          @fecha_out = @ajustada OUTPUT;
+      IF @vto2 IS NOT NULL
+      BEGIN
+          SET @ajustada = NULL;
 
-      UPDATE #Tot
-         SET vto2 = @ajustada
-       WHERE id = @id;
+          EXEC prod.sp_AjustarADiaHabilConFeriados
+              @fecha_in  = @vto2,
+              @fecha_out = @ajustada OUTPUT;
 
-      FETCH NEXT FROM curVto INTO @id, @vto1, @vto2;
-  END
+          UPDATE #Tot
+             SET vto2 = @ajustada
+           WHERE id = @id;
+      END;
 
-  CLOSE curVto;
-  DEALLOCATE curVto;
+      SET @id = @id + 1;
+  END;
 
   -------------------------------------------------------------------------
   -- 5.d) MERGE final a prod.Expensa usando fechas ya ajustadas
@@ -1557,7 +1579,7 @@ BEGIN
 
  /*=========================================================
     5) Crear Expensa del MES SIGUIENTE al último pago,
-       usando 5.º día hábil 
+       usando 5.º día hábil  + ajuste de vencimientos
   =========================================================*/
   DECLARE @ultimaFechaPago DATE;
 
@@ -1567,12 +1589,14 @@ BEGIN
   IF @ultimaFechaPago IS NOT NULL
   BEGIN
       DECLARE 
-          @fechaTarget   DATE,
-          @anioTarget    INT,
-          @mesTarget     INT,
-          @periodoTarget DATE,
-          @vto1          DATE,
-          @vto2          DATE;
+          @fechaTarget    DATE,
+          @anioTarget     INT,
+          @mesTarget      INT,
+          @periodoTarget  DATE,
+          @vto1           DATE,
+          @vto2           DATE,
+          @vto1_hab       DATE,
+          @vto2_hab       DATE;
 
       -- mes siguiente al último pago
       SET @fechaTarget = DATEADD(MONTH, 1, @ultimaFechaPago);
@@ -1594,8 +1618,21 @@ BEGIN
       IF @periodoTarget IS NULL
           SET @periodoTarget = DATEFROMPARTS(@anioTarget, @mesTarget, 5);
 
+      -- vencimientos base = periodo + 10 y + 20 días
       SET @vto1 = DATEADD(DAY, 10, @periodoTarget);
       SET @vto2 = DATEADD(DAY, 20, @periodoTarget);
+
+      -- ajustar a día hábil con feriados
+      EXEC prod.sp_AjustarADiaHabilConFeriados
+           @fecha_in  = @vto1,
+           @fecha_out = @vto1_hab OUTPUT;
+
+      EXEC prod.sp_AjustarADiaHabilConFeriados
+           @fecha_in  = @vto2,
+           @fecha_out = @vto2_hab OUTPUT;
+
+      SET @vto1 = @vto1_hab;
+      SET @vto2 = @vto2_hab;
 
       ;WITH ConsAfectados AS (
           SELECT DISTINCT consorcio_id

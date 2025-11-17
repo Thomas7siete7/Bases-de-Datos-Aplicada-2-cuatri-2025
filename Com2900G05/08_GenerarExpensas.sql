@@ -394,8 +394,8 @@ BEGIN
     FROM #Prorrateo p
     WHERE p.Deuda > 0.00;
 
-        -- 8.4 LISTADO DE GASTOS ORDINARIOS (item 4)
-    --    Un solo registro por proveedor en la expensa
+    -- 8.4 LISTADO DE GASTOS ORDINARIOS (item 4)
+    --    Un registro por tipo de gasto ordinario
     INSERT INTO #Archivo1(
         tipo_registro, consorcio_id, consorcio_nombre, periodo,
         detalle, importe
@@ -405,23 +405,8 @@ BEGIN
         @consorcio_id,
         @consorcio_nombre,
         @periodo,
-        CONCAT(
-            'Proveedor: ', pr.nombre,
-            ' - Tipos: ',
-            STUFF((
-                SELECT DISTINCT
-                       ', ' + o2.tipo_gasto_ordinario
-                FROM prod.Ordinarios o2
-                JOIN prod.ProveedorConsorcio pc2
-                  ON pc2.pc_id = o2.pc_id
-                 AND pc2.proveedor_id = pr.proveedor_id
-                 AND pc2.borrado = 0
-                WHERE o2.expensa_id = @expensa_id
-                  AND o2.borrado    = 0
-                FOR XML PATH(''), TYPE
-            ).value('.', 'nvarchar(max)'), 1, 2, '')
-        ) AS detalle,
-        SUM(o.importe) AS importe
+        o.tipo_gasto_ordinario AS detalle,
+        SUM(o.importe)         AS importe
     FROM prod.Ordinarios o
     JOIN prod.ProveedorConsorcio pc
       ON pc.pc_id = o.pc_id
@@ -431,7 +416,7 @@ BEGIN
      AND pr.borrado = 0
     WHERE o.expensa_id = @expensa_id
       AND o.borrado    = 0
-    GROUP BY pr.proveedor_id, pr.nombre;
+    GROUP BY o.tipo_gasto_ordinario;
 
 
     -- 8.5 LISTADO DE GASTOS EXTRAORDINARIOS (item 5)
