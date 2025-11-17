@@ -1745,30 +1745,30 @@ END
 GO
 
 EXEC prod.sp_ImportarConsorcios
-  @path = 'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/consorcios/datos varios.xlsx';
+  @path = 'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/Archivos_Para_Importar/datos varios.xlsx';
 GO
 
 EXEC prod.sp_ImportarProveedores
-  @path = 'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/consorcios/datos varios.xlsx';
+  @path = 'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/Archivos_Para_Importar/datos varios.xlsx';
 GO
 
 EXEC prod.sp_ImportarUF_TXT 
-  @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\UF por consorcio.txt';
+  @path = N'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/Archivos_Para_Importar/UF por consorcio.txt';
 GO
 
 EXEC prod.sp_CargarPersonas_CSV
-  @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Inquilino-propietarios-datos.csv';
+  @path = N'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/Archivos_Para_Importar/Inquilino-propietarios-datos.csv';
 GO
 
 EXEC prod.sp_CargarTitularidad_desdeUF
-  @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Inquilino-propietarios-UF.csv';
+  @path = N'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/Archivos_Para_Importar/Inquilino-propietarios-UF.csv';
 GO
 
 EXEC prod.sp_ImportarServicios_JSON 
-  @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\Servicios.Servicios.json',
+  @path = N'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/Archivos_Para_Importar/Servicios.Servicios.json',
   @anio = 2025;
 GO
 
 EXEC prod.sp_ImportarPagos_CSV
-  @path = N'C:\Bases-de-Datos-Aplicada-2-cuatri-2025\consorcios\pagos_consorcios.csv';
+  @path = N'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/Archivos_Para_Importar/pagos_consorcios.csv';
 GO

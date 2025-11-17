@@ -135,13 +135,14 @@ BEGIN
     --------------------------------------------------------------------
     DECLARE @cols NVARCHAR(MAX);
 
-    SELECT @cols = STRING_AGG(QUOTENAME(d.depto), ',')
+    SELECT @cols = STRING_AGG(QUOTENAME(d.UFLabel), ',')
     FROM (
-        SELECT DISTINCT uf.depto
-        FROM prod.UnidadFuncional uf
-        WHERE uf.borrado = 0
-          AND (@ConsorcioId IS NULL OR uf.consorcio_id = @ConsorcioId)
+    SELECT DISTINCT (uf.piso + '-' + uf.depto) AS UFLabel
+    FROM prod.UnidadFuncional uf
+    WHERE uf.borrado = 0
+      AND (@ConsorcioId IS NULL OR uf.consorcio_id = @ConsorcioId)
     ) d;
+
 
     IF @cols IS NULL
     BEGIN
@@ -162,9 +163,9 @@ BEGIN
 ;WITH Base AS
 (
     SELECT
-        YEAR(p.fecha)  AS Anio,
+        YEAR(p.fecha) AS Anio,
         MONTH(p.fecha) AS Mes,
-        uf.depto,
+        uf.piso + ''-'' + uf.depto AS UFLabel,
         p.importe
     FROM prod.Pago p
     INNER JOIN prod.Expensa e
@@ -191,7 +192,7 @@ SELECT
 FROM Base
 PIVOT
 (
-    SUM(importe) FOR depto IN (' + @cols + ')
+    SUM(importe) FOR UFLabel IN (' + @cols + ')
 ) AS pvt
 ORDER BY Anio, Mes;';
 

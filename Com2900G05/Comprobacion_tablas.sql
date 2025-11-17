@@ -6,7 +6,7 @@ SELECT * FROM prod.Expensa
 SELECT * FROM prod.Extraordinarios
 SELECT * FROM prod.Factura 
 SELECT * FROM prod.Mora 
-SELECT * FROM prod.Ordinarios --where expensa_id = 21 order by pc_id
+SELECT * FROM prod.Ordinarios where pc_id = 6 
 SELECT * FROM prod.Pago
 SELECT * FROM prod.Persona
 SELECT * FROM prod.Proveedor

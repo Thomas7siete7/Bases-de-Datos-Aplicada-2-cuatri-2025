@@ -1137,32 +1137,35 @@ DECLARE
 SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
 SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
 
-PRINT '2) Cargar Personas...';
-EXEC prod.sp_CargarPersonasAleatorias    @cantidad = 100;
+--PRINT '2) Cargar Personas...';
+--EXEC prod.sp_CargarPersonasAleatorias    @cantidad = 100;
 
-PRINT '8) Cargar Titularidades...';
-EXEC prod.sp_CargarTitularidadesAleatorias @cantidad = 100;
+--PRINT '8) Cargar Titularidades...';
+--EXEC prod.sp_CargarTitularidadesAleatorias @cantidad = 100;
 
-PRINT '3) Cargar Proveedores...';
-EXEC prod.sp_CargarProveedoresAleatorios @cantidad = 10;
+--PRINT '3) Cargar Proveedores...';
+--EXEC prod.sp_CargarProveedoresAleatorios @cantidad = 10;
 
-PRINT '6) Cargar Proveedor-Consorcio...';
-EXEC prod.sp_CargarProveedorConsorcioAleatorios @cantidad = 10;
+--PRINT '6) Cargar Proveedor-Consorcio...';
+--EXEC prod.sp_CargarProveedorConsorcioAleatorios @cantidad = 10;
 
-PRINT '7) Cargar Expensas...';
-EXEC prod.sp_CargarExpensasAleatorias 
-     @cantidad   = 10,
-     @anio_desde = @anio_desde,
-     @anio_hasta = @anio_hasta;
+--PRINT '7) Cargar Expensas...';
+--EXEC prod.sp_CargarExpensasAleatorias 
+--     @cantidad   = 10,
+--     @anio_desde = @anio_desde,
+--     @anio_hasta = @anio_hasta;
 
 --DECLARE 
 --    @anio_desde   INT = 2024,
 --    @anio_hasta   INT = 2025,
 --    @fecha_desdeP DATE,
 --    @fecha_hastaP DATE;
+
+--SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
+--SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
 PRINT '9) Cargar Pagos...';
 EXEC prod.sp_CargarPagosAleatorios 
-     @cantidad    = 100,
+     @cantidad    = 1000,
      @fecha_desde = @fecha_desdeP,
      @fecha_hasta = @fecha_hastaP;
 

@@ -37,7 +37,6 @@ BEGIN
         @venc1      DATE,
         @venc2      DATE;
 
-    -- ¿ya existe la expensa para ese año/mes?
     SELECT 
         @expensa_id = e.expensa_id,
         @periodo    = e.periodo,
@@ -46,21 +45,19 @@ BEGIN
     FROM prod.Expensa e
     WHERE e.consorcio_id = @consorcio_id
       AND e.borrado      = 0
-      AND YEAR(e.periodo) = @anio
+      AND YEAR(e.periodo)  = @anio
       AND MONTH(e.periodo) = @mes;
 
     IF @expensa_id IS NULL
     BEGIN
-        -- crea la expensa (adentro calcula quinto día hábil y vencimientos)
         EXEC prod.sp_AltaExpensa
              @consorcio_id = @consorcio_id,
              @anio         = @anio,
              @mes          = @mes,
-             @total        = NULL,   -- lo recalculás al final
+             @total        = NULL,
              @dias_vto1    = 10,
              @dias_vto2    = 20;
 
-        -- volver a leer la expensa recién creada
         SELECT 
             @expensa_id = e.expensa_id,
             @periodo    = e.periodo,
@@ -69,7 +66,7 @@ BEGIN
         FROM prod.Expensa e
         WHERE e.consorcio_id = @consorcio_id
           AND e.borrado      = 0
-          AND YEAR(e.periodo) = @anio
+          AND YEAR(e.periodo)  = @anio
           AND MONTH(e.periodo) = @mes;
     END;
 
@@ -138,26 +135,33 @@ BEGIN
           AND uf.borrado      = 0
         GROUP BY uf.uf_id, uf.consorcio_id, uf.piso, uf.depto, uf.coeficiente
     ),
-    PropietarioVigente AS (
-        -- prioriza vigente al PERIODO; si no hay, último propietario conocido
+    -- Propietarios vigentes al período
+    PropietariosVigentes AS (
         SELECT
             t.uf_id,
-            p.nombre,
-            p.apellido,
-            ROW_NUMBER() OVER(
-                PARTITION BY t.uf_id
-                ORDER BY 
-                    CASE 
-                        WHEN t.fecha_desde <= @periodo
-                         AND (t.fecha_hasta IS NULL OR t.fecha_hasta >= @periodo)
-                        THEN 0
-                        ELSE 1
-                    END,
-                    t.fecha_desde DESC
-            ) AS rn
+            STRING_AGG(CONCAT(ISNULL(p.apellido,''), ', ', ISNULL(p.nombre,'')), ' / ')
+                WITHIN GROUP (ORDER BY p.apellido, p.nombre) AS propietarios
         FROM prod.Titularidad t
         JOIN prod.Persona p
           ON p.persona_id = t.persona_id
+        WHERE t.tipo_titularidad = 'PROPIETARIO'
+          AND t.fecha_desde <= @periodo
+          AND (t.fecha_hasta IS NULL OR t.fecha_hasta >= @periodo)
+        GROUP BY t.uf_id
+    ),
+    -- Inquilinos vigentes al período
+    InquilinosVigentes AS (
+        SELECT
+            t.uf_id,
+            STRING_AGG(CONCAT(ISNULL(p.apellido,''), ', ', ISNULL(p.nombre,'')), ' / ')
+                WITHIN GROUP (ORDER BY p.apellido, p.nombre) AS inquilinos
+        FROM prod.Titularidad t
+        JOIN prod.Persona p
+          ON p.persona_id = t.persona_id
+        WHERE t.tipo_titularidad = 'INQUILINO'
+          AND t.fecha_desde <= @periodo
+          AND (t.fecha_hasta IS NULL OR t.fecha_hasta >= @periodo)
+        GROUP BY t.uf_id
     ),
     UFConPropietario AS (
         SELECT
@@ -167,12 +171,22 @@ BEGIN
             u.coeficiente,
             u.cant_cocheras,
             u.cant_bauleras,
-            CONCAT(ISNULL(pv.apellido,''), ', ', ISNULL(pv.nombre,'')) AS propietario
+            LTRIM(RTRIM(
+                COALESCE('Prop: ' + pv.propietarios, '') +
+                CASE 
+                    WHEN pv.propietarios IS NOT NULL AND iv.inquilinos IS NOT NULL 
+                        THEN ' / ' 
+                    ELSE '' 
+                END +
+                COALESCE('Inq: ' + iv.inquilinos, '')
+            )) AS propietario
         FROM UFBase u
-        LEFT JOIN PropietarioVigente pv
+        LEFT JOIN PropietariosVigentes pv
           ON pv.uf_id = u.uf_id
-         AND pv.rn    = 1
+        LEFT JOIN InquilinosVigentes iv
+          ON iv.uf_id = u.uf_id
     ),
+
     ------------------------------------------------------------------
     -- 5) Titularidad para mapear pagos -> UF por fecha de pago
     ------------------------------------------------------------------
@@ -215,7 +229,7 @@ BEGIN
         SELECT
             tv.uf_id,
 
-            -- pagos anteriores al período actual (PagosRecibidos)
+            -- pagos anteriores al período actual
             SUM(CASE 
                     WHEN pd.fecha < @periodo THEN pd.importe 
                     ELSE 0 
@@ -258,10 +272,10 @@ BEGIN
     SELECT
         u.uf_id                                                    AS Uf,
         u.coeficiente                                             AS Porcentaje,
-        u.piso + '-' + u.depto                                   AS PisoDepto,
-        u.cant_cocheras                                          AS Cocheras,
-        u.cant_bauleras                                          AS Bauleras,
-        u.propietario                                            AS Propietario,
+        u.piso + '-' + u.depto                                    AS PisoDepto,
+        u.cant_cocheras                                           AS Cocheras,
+        u.cant_bauleras                                           AS Bauleras,
+        u.propietario                                             AS Propietario,
 
         -- Cargos históricos prorrateados
         CAST(ROUND(
@@ -332,7 +346,7 @@ BEGIN
         DROP TABLE #Archivo1;
 
     CREATE TABLE #Archivo1(
-        tipo_registro    VARCHAR(30),    -- qué item es
+        tipo_registro    VARCHAR(30),
         consorcio_id     INT,
         consorcio_nombre VARCHAR(200),
         periodo          DATE,
@@ -353,7 +367,7 @@ BEGIN
     -- 8.1 ENCABEZADO (item 1)
     INSERT INTO #Archivo1(tipo_registro, consorcio_id, consorcio_nombre, periodo, detalle)
     SELECT
-        'ENCABEZADO',
+        '1_ENCABEZADO',
         c.consorcio_id,
         c.nombre,
         @periodo,
@@ -361,11 +375,10 @@ BEGIN
     FROM prod.Consorcio c
     WHERE c.consorcio_id = @consorcio_id;
 
-
     -- 8.2 FORMA DE PAGO Y VENCIMIENTOS (item 2)
     INSERT INTO #Archivo1(tipo_registro, consorcio_id, consorcio_nombre, periodo, detalle)
     VALUES(
-        'FORMA_PAGO',
+        '2_FORMA_PAGO',
         @consorcio_id,
         @consorcio_nombre,
         @periodo,
@@ -383,7 +396,7 @@ BEGIN
         uf_id, uf, propietario, saldo_deudor
     )
     SELECT
-        'PROPIETARIO_DEUDOR',
+        '3_PROPIETARIO_DEUDOR',
         @consorcio_id,
         @consorcio_nombre,
         @periodo,
@@ -395,18 +408,22 @@ BEGIN
     WHERE p.Deuda > 0.00;
 
     -- 8.4 LISTADO DE GASTOS ORDINARIOS (item 4)
-    --    Un registro por tipo de gasto ordinario
+    --     Un registro por gasto ordinario (factura)
     INSERT INTO #Archivo1(
         tipo_registro, consorcio_id, consorcio_nombre, periodo,
         detalle, importe
     )
     SELECT
-        'GASTO_ORDINARIO',
+        '4_GASTO_ORDINARIO',
         @consorcio_id,
         @consorcio_nombre,
         @periodo,
-        o.tipo_gasto_ordinario AS detalle,
-        SUM(o.importe)         AS importe
+        CONCAT(
+            'Proveedor: ', pr.nombre,
+            ' - Tipo: ', o.tipo_gasto_ordinario,
+            ' - Ref: ', o.nro_factura
+        ) AS detalle,
+        o.importe
     FROM prod.Ordinarios o
     JOIN prod.ProveedorConsorcio pc
       ON pc.pc_id = o.pc_id
@@ -415,9 +432,7 @@ BEGIN
       ON pr.proveedor_id = pc.proveedor_id
      AND pr.borrado = 0
     WHERE o.expensa_id = @expensa_id
-      AND o.borrado    = 0
-    GROUP BY o.tipo_gasto_ordinario;
-
+      AND o.borrado    = 0;
 
     -- 8.5 LISTADO DE GASTOS EXTRAORDINARIOS (item 5)
     INSERT INTO #Archivo1(
@@ -425,7 +440,7 @@ BEGIN
         detalle, importe
     )
     SELECT
-        'GASTO_EXTRAORDINARIO',
+        '5_GASTO_EXTRAORDINARIO',
         @consorcio_id,
         @consorcio_nombre,
         @periodo,
@@ -444,13 +459,52 @@ BEGIN
     -- 8.6 COMPOSICIÓN ESTADO FINANCIERO (item 6)
     ------------------------------------------------------------------
     DECLARE
-        @saldo_anterior     DECIMAL(12,2) = 0.00,  -- si tenés cuenta bancaria, acá la traés
+        @saldo_anterior     DECIMAL(12,2),
         @ing_termino        DECIMAL(12,2),
         @ing_adeudadas      DECIMAL(12,2),
         @ing_adelantadas    DECIMAL(12,2),
         @egresos_mes        DECIMAL(12,2),
         @saldo_cierre       DECIMAL(12,2);
 
+    -- Saldo anterior = ingresos - egresos de periodos previos
+    ;WITH IngresosAnt AS (
+        SELECT SUM(p.importe) AS total_ingresos
+        FROM prod.Pago p
+        JOIN prod.Expensa e
+          ON e.expensa_id = p.expensa_id
+        WHERE e.consorcio_id = @consorcio_id
+          AND e.borrado      = 0
+          AND e.periodo      < @periodo
+          AND p.borrado      = 0
+          AND p.estado IN ('APLICADO','ASOCIADO')
+    ),
+    EgresosOrdAnt AS (
+        SELECT SUM(o.importe) AS total_egresos
+        FROM prod.Ordinarios o
+        JOIN prod.Expensa e
+          ON e.expensa_id = o.expensa_id
+        WHERE e.consorcio_id = @consorcio_id
+          AND e.borrado      = 0
+          AND e.periodo      < @periodo
+          AND o.borrado      = 0
+    ),
+    EgresosExtAnt AS (
+        SELECT SUM(x.valor_cuota_actual) AS total_egresos
+        FROM prod.Extraordinarios x
+        JOIN prod.Expensa e
+          ON e.expensa_id = x.expensa_id
+        WHERE e.consorcio_id = @consorcio_id
+          AND e.borrado      = 0
+          AND e.periodo      < @periodo
+          AND x.borrado      = 0
+    )
+    SELECT
+        @saldo_anterior =
+              ISNULL((SELECT total_ingresos FROM IngresosAnt),0)
+            - ISNULL((SELECT total_egresos  FROM EgresosOrdAnt),0)
+            - ISNULL((SELECT total_egresos  FROM EgresosExtAnt),0);
+
+    -- Clasificación de ingresos del período actual
     ;WITH PagosTodo AS (
         SELECT
             p.importe,
@@ -486,12 +540,12 @@ BEGIN
         tipo_registro, consorcio_id, consorcio_nombre, periodo, detalle, importe
     )
     VALUES
-        ('EF_SALDO_ANT',  @consorcio_id, @consorcio_nombre, @periodo, 'Saldo anterior',          @saldo_anterior),
-        ('EF_ING_TERM',   @consorcio_id, @consorcio_nombre, @periodo, 'Ingresos en término',     @ing_termino),
-        ('EF_ING_ADEUD',  @consorcio_id, @consorcio_nombre, @periodo, 'Ingresos expensas adeud', @ing_adeudadas),
-        ('EF_ING_ADEL',   @consorcio_id, @consorcio_nombre, @periodo, 'Ingresos expensas adel',  @ing_adelantadas),
-        ('EF_EGRESOS',    @consorcio_id, @consorcio_nombre, @periodo, 'Egresos del mes',         @egresos_mes),
-        ('EF_SALDO_CIER', @consorcio_id, @consorcio_nombre, @periodo, 'Saldo al cierre',         @saldo_cierre);
+        ('6_EF_SALDO_ANT',  @consorcio_id, @consorcio_nombre, @periodo, 'Saldo anterior',          @saldo_anterior),
+        ('6_EF_ING_TERM',   @consorcio_id, @consorcio_nombre, @periodo, 'Ingresos en término',     @ing_termino),
+        ('6_EF_ING_ADEUD',  @consorcio_id, @consorcio_nombre, @periodo, 'Ingresos expensas adeud', @ing_adeudadas),
+        ('6_EF_ING_ADEL',   @consorcio_id, @consorcio_nombre, @periodo, 'Ingresos expensas adel',  @ing_adelantadas),
+        ('6_EF_EGRESOS',    @consorcio_id, @consorcio_nombre, @periodo, 'Egresos del mes',         @egresos_mes),
+        ('6_EF_SALDO_CIER', @consorcio_id, @consorcio_nombre, @periodo, 'Saldo al cierre',         @saldo_cierre);
 
     ------------------------------------------------------------------
     -- 9) Devolver resultados para CSVs
@@ -503,17 +557,18 @@ BEGIN
         consorcio_id,
         consorcio_nombre,
         periodo,
-        detalle,
-        importe,
-        uf_id,
-        uf,
-        propietario,
-        saldo_deudor
+        ISNULL(detalle, '-')         AS detalle,
+        ISNULL(CAST(importe AS VARCHAR(50)), '-') AS importe,
+        ISNULL(CAST(uf_id AS VARCHAR(20)), '-')   AS uf_id,
+        ISNULL(uf, '-')               AS uf,
+        ISNULL(propietario, '-')      AS propietario,
+        ISNULL(CAST(saldo_deudor AS VARCHAR(50)), '-') AS saldo_deudor
     FROM #Archivo1
-    ORDER BY
+    ORDER BY 
         tipo_registro,
-        uf_id,
+        CASE WHEN uf_id = '-' THEN 0 ELSE TRY_CAST(uf_id AS INT) END,
         detalle;
+
 
     -- ARCHIVO 2: ESTADO DE CUENTAS Y PRORRATEO (item 7)
     SELECT *
@@ -522,7 +577,6 @@ BEGIN
 
     ------------------------------------------------------------------
     -- 10) Actualizar total de la EXPENSA
-    --      (cargos del período: ordinarios + extraordinarios + mora)
     ------------------------------------------------------------------
     UPDATE e
        SET e.total = (
@@ -536,74 +590,61 @@ BEGIN
     FROM prod.Expensa e
     WHERE e.expensa_id = @expensa_id;
 
-    SELECT @expensa_id FROM prod.Expensa WHERE expensa_id=@expensa_id
+    --    ------------------------------------------------------------------
+    ---- 11) Generar CSV con BCP (requiere xp_cmdshell habilitado)
+    --------------------------------------------------------------------
+    --DECLARE 
+    --    @basePath  NVARCHAR(260) = N'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/Expensas_Generadas/',   -- AJUSTAR RUTA
+    --    @file1     NVARCHAR(260),
+    --    @file2     NVARCHAR(260),
+    --    @cmd1      NVARCHAR(4000),
+    --    @cmd2      NVARCHAR(4000),
+    --    @periodoStr CHAR(10);
 
+    --SET @periodoStr = CONVERT(CHAR(10), @periodo, 23);  -- yyyy-mm-dd
+
+    --SET @file1 = @basePath 
+    --           + REPLACE(@consorcio_nombre,' ','_')
+    --           + '_'
+    --           + @periodoStr
+    --           + '_Archivo1.csv';
+
+    --SET @file2 = @basePath 
+    --           + REPLACE(@consorcio_nombre,' ','_')
+    --           + '_'
+    --           + @periodoStr
+    --           + '_Archivo2.csv';
+
+    ---- OJO con el server name / instancia
+    --DECLARE @server NVARCHAR(200) = @@SERVERNAME;
+
+    ---- BCP Archivo1
+    --SET @cmd1 = 'bcp "SELECT tipo_registro, consorcio_id, consorcio_nombre, '
+    --          + 'CONVERT(char(10), periodo, 23) AS periodo, detalle, importe, '
+    --          + 'uf_id, uf, propietario, saldo_deudor '
+    --          + 'FROM #Archivo1 '
+    --          + 'WHERE consorcio_id = ' + CAST(@consorcio_id AS VARCHAR(10))
+    --          + ' AND periodo = ''' + @periodoStr + ''' '
+    --          + 'ORDER BY tipo_registro, uf_id, detalle" '
+    --          + 'queryout "' + @file1 + '" -c -t; -T -S ' + @server;
+
+    --EXEC xp_cmdshell @cmd1;
+
+    ---- BCP Archivo2
+    --SET @cmd2 = 'bcp "SELECT Uf, Porcentaje, PisoDepto, Cocheras, Bauleras, '
+    --          + 'Propietario, SaldoAnterior, PagosRecibidos, Deuda, '
+    --          + 'InteresPorMora, ExpensasOrdinarias, ExpensasExtraordinarias, TotalAPagar '
+    --          + 'FROM #Prorrateo" '
+    --          + 'queryout "' + @file2 + '" -c -t; -T -S ' + @server;
+
+    --EXEC xp_cmdshell @cmd2;
+
+
+    SELECT @expensa_id AS expensa_id;
 END;
 GO
-
 
 EXEC prod.sp_GenerarExpensaYProrrateo 
      @consorcio_id = 1, 
      @anio = 2025, 
      @mes  = 07;
-
--- 1) Ver cuántas expensas tiene ese consorcio y sus períodos
---SELECT expensa_id, periodo
---FROM prod.Expensa
---WHERE consorcio_id = 97
---ORDER BY periodo;
-
---;WITH M2PorUF AS (
---    SELECT
---        UF.uf_id,
---        UF.consorcio_id,
---        UF.cant_m2 
---          + ISNULL(SUM(UA.m2_accesorio), 0) AS m2_total_uf,
---        UF.coeficiente
---    FROM prod.UnidadFuncional UF
---    LEFT JOIN prod.UnidadAccesoria UA
---        ON UA.uf_id = UF.uf_id
---    -- WHERE UF.borrado = 0  -- si usás borrado lógico
---    GROUP BY
---        UF.uf_id,
---        UF.consorcio_id,
---        UF.cant_m2,
---        UF.coeficiente
---)
---SELECT
---    C.consorcio_id,
---    C.cant_m2_total,
---    SUM(M.m2_total_uf)      AS m2_usados,
---    SUM(M.coeficiente)      AS coef_total
---FROM prod.Consorcio C
---JOIN M2PorUF M
---    ON C.consorcio_id = M.consorcio_id
---GROUP BY
---    C.consorcio_id,
---    C.cant_m2_total;
-
-
-
-
-
---EXEC prod.sp_AltaPago
---         @expensa_id      = 6,
---         @fecha           = '2025-03-05',
---         @importe         = 100000.00,
---         @nro_transaccion = '12312311123',  -- ya usado
---         @estado          = 'APLICADO',
---         @cbu_cvu_origen  = '000000000000130811491';
-
----- 2) Ver pagos de ese consorcio y si son anteriores al período que estás prorrateando
---SELECT p.*
---FROM prod.Pago p
---JOIN prod.Expensa e ON e.expensa_id = p.expensa_id
---WHERE e.consorcio_id = 3
---  AND p.estado IN ('APLICADO','ASOCIADO')
---ORDER BY e.periodo, p.fecha;
-
---SELECT C.consorcio_id, C.nombre, UF.piso, UF.depto 
---FROM prod.Consorcio C 
---JOIN prod.UnidadFuncional UF 
---ON C.consorcio_id = UF.consorcio_id
---ORDER BY C.consorcio_id, UF.piso, UF.depto
