@@ -1,61 +1,89 @@
-USE Com2900G05;
+USE COM2900G05;
 GO
 
 -- Crear los esquemas necesarios
 
 IF EXISTS (SELECT * FROM sys.schemas WHERE name = 'prod')
+BEGIN
     DECLARE @schema SYSNAME = 'prod';
     DECLARE @sql NVARCHAR(MAX) = N'';
 
-    -- Eliminar triggers de tabla (en tablas del esquema)
+    ----------------------------------------------------------
+    -- Eliminar vistas del esquema
+    ----------------------------------------------------------
+    SELECT @sql = @sql + N'DROP VIEW [' + s.name + '].[' + v.name + '];' + CHAR(13)
+    FROM sys.views v
+    JOIN sys.schemas s ON v.schema_id = s.schema_id
+    WHERE s.name = @schema;
+
+    ----------------------------------------------------------
+    -- Eliminar triggers de tabla
+    ----------------------------------------------------------
     SELECT @sql = @sql + N'DROP TRIGGER [' + s.name + '].[' + tr.name + '];' + CHAR(13)
     FROM sys.triggers tr
     JOIN sys.tables t ON tr.parent_id = t.object_id
     JOIN sys.schemas s ON t.schema_id = s.schema_id
     WHERE s.name = @schema;
 
-    -- Eliminar funciones (scalar o table-valued)
+    ----------------------------------------------------------
+    -- Eliminar funciones (FN, TF, IF)
+    ----------------------------------------------------------
     SELECT @sql = @sql + N'DROP FUNCTION [' + s.name + '].[' + o.name + '];' + CHAR(13)
     FROM sys.objects o
     JOIN sys.schemas s ON o.schema_id = s.schema_id
-    WHERE s.name = @schema AND o.type IN ('FN','TF','IF');  -- funciones escalares, de tabla o inline
+    WHERE s.name = @schema
+      AND o.type IN ('FN','TF','IF');
 
-    -- Eliminar procedimientos almacenados
+    ----------------------------------------------------------
+    -- Eliminar stored procedures
+    ----------------------------------------------------------
     SELECT @sql = @sql + N'DROP PROCEDURE [' + s.name + '].[' + o.name + '];' + CHAR(13)
     FROM sys.objects o
     JOIN sys.schemas s ON o.schema_id = s.schema_id
-    WHERE s.name = @schema AND o.type = 'P';
+    WHERE s.name = @schema
+      AND o.type = 'P';
 
-    -- Eliminar indices
-    SELECT @sql = @sql + 'DROP INDEX ' + QUOTENAME(i.name) + ' ON ' 
-                  + QUOTENAME(s.name) + '.' + QUOTENAME(t.name) + ';' + CHAR(13)
+    ----------------------------------------------------------
+    -- Eliminar índices
+    ----------------------------------------------------------
+    SELECT @sql = @sql + 'DROP INDEX ' + QUOTENAME(i.name) + 
+                     ' ON ' + QUOTENAME(s.name) + '.' + QUOTENAME(t.name) + ';' + CHAR(13)
     FROM sys.indexes i
     JOIN sys.tables t  ON i.object_id = t.object_id
     JOIN sys.schemas s ON t.schema_id = s.schema_id
     WHERE s.name = @schema
       AND i.name IS NOT NULL
       AND i.is_hypothetical = 0
-      AND i.type_desc <> 'HEAP'           
-      AND i.is_primary_key = 0            
-      AND i.is_unique_constraint = 0;     
+      AND i.type_desc <> 'HEAP'
+      AND i.is_primary_key = 0
+      AND i.is_unique_constraint = 0;
 
-    -- Eliminar claves foráneas del esquema
-    SELECT @sql = @sql + 'ALTER TABLE [' + s.name + '].[' + t.name + '] DROP CONSTRAINT [' + fk.name + '];' + CHAR(13)
+    ----------------------------------------------------------
+    -- Eliminar claves foráneas
+    ----------------------------------------------------------
+    SELECT @sql = @sql + 'ALTER TABLE [' + s.name + '].[' + t.name +
+                            '] DROP CONSTRAINT [' + fk.name + '];' + CHAR(13)
     FROM sys.foreign_keys fk
     JOIN sys.tables t ON fk.parent_object_id = t.object_id
     JOIN sys.schemas s ON t.schema_id = s.schema_id
     WHERE s.name = @schema;
 
-    -- Eliminar tablas del esquema
+    ----------------------------------------------------------
+    -- Eliminar tablas
+    ----------------------------------------------------------
     SELECT @sql = @sql + 'DROP TABLE [' + s.name + '].[' + t.name + '];' + CHAR(13)
     FROM sys.tables t
     JOIN sys.schemas s ON t.schema_id = s.schema_id
     WHERE s.name = @schema;
 
+    ----------------------------------------------------------
     -- Eliminar el esquema
+    ----------------------------------------------------------
     SET @sql = @sql + 'DROP SCHEMA [' + @schema + '];';
 
+    PRINT @sql;
     EXEC sp_executesql @sql; 
+END
 GO
 
 CREATE SCHEMA prod;

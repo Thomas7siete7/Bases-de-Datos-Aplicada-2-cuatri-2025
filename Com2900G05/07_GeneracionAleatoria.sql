@@ -1127,33 +1127,33 @@ DECLARE
 SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
 SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
 
-PRINT '2) Cargar Personas...';
-EXEC prod.sp_CargarPersonasAleatorias    @cantidad = 10;
+--PRINT '2) Cargar Personas...';
+--EXEC prod.sp_CargarPersonasAleatorias    @cantidad = 10;
 
-PRINT '8) Cargar Titularidades...';
-EXEC prod.sp_CargarTitularidadesAleatorias @cantidad = 10;
+--PRINT '8) Cargar Titularidades...';
+--EXEC prod.sp_CargarTitularidadesAleatorias @cantidad = 10;
 
-PRINT '3) Cargar Proveedores...';
-EXEC prod.sp_CargarProveedoresAleatorios @cantidad = 10;
+--PRINT '3) Cargar Proveedores...';
+--EXEC prod.sp_CargarProveedoresAleatorios @cantidad = 10;
 
-PRINT '6) Cargar Proveedor-Consorcio...';
-EXEC prod.sp_CargarProveedorConsorcioAleatorios @cantidad = 10;
+--PRINT '6) Cargar Proveedor-Consorcio...';
+--EXEC prod.sp_CargarProveedorConsorcioAleatorios @cantidad = 10;
 
-PRINT '7) Cargar Expensas...';
-EXEC prod.sp_CargarExpensasAleatorias 
-     @cantidad   = 10,
-     @anio_desde = @anio_desde,
-     @anio_hasta = @anio_hasta;
+--PRINT '7) Cargar Expensas...';
+--EXEC prod.sp_CargarExpensasAleatorias 
+--     @cantidad   = 10,
+--     @anio_desde = @anio_desde,
+--     @anio_hasta = @anio_hasta;
 
-DECLARE 
-    @anio_desde   INT = 2024,
-    @anio_hasta   INT = 2025,
-    @fecha_desdeP DATE,
-    @fecha_hastaP DATE;
+--DECLARE 
+--    @anio_desde   INT = 2024,
+--    @anio_hasta   INT = 2025,
+--    @fecha_desdeP DATE,
+--    @fecha_hastaP DATE;
 
-SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
-SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
-PRINT '9) Cargar Pagos...';
+--SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
+--SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
+--PRINT '9) Cargar Pagos...';
 EXEC prod.sp_CargarPagosAleatorios 
      @cantidad    = 1000,
      @fecha_desde = @fecha_desdeP,
@@ -1205,11 +1205,11 @@ EXEC prod.sp_CargarOrdinariosAleatorios @cantidad = 100;
 
 
 
---PRINT '12) Cargar Facturas...';
---EXEC prod.sp_CargarFacturasAleatorias @cantidad = 10;
+PRINT '12) Cargar Facturas...';
+EXEC prod.sp_CargarFacturasAleatorias @cantidad = 10;
 
---PRINT '13) Cargar Moras...';
---EXEC prod.sp_CargarMorasAleatorias @cantidad = 10;
+PRINT '13) Cargar Moras...';
+EXEC prod.sp_CargarMorasAleatorias @cantidad = 10;
 
 --PRINT '=== FIN LOTE DE PRUEBAS - ALTAS ALEATORIAS ===';
 --GO

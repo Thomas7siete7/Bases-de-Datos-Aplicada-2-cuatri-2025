@@ -1,4 +1,4 @@
-USE COM2900G05;
+USE Com2900G05;
 GO
 
 /*
@@ -20,7 +20,7 @@ BEGIN
     IF @FechaDesde IS NULL SET @FechaDesde = '2000-01-01';
     IF @FechaHasta IS NULL SET @FechaHasta = '2100-12-31';
 
-    /* 1) ComposiciÃ³n de cada expensa: cuÃ¡nto es ordinario y cuanto es extraordinario */
+    /* 1) Composición de cada expensa: cuánto es ordinario y cuanto es extraordinario */
     ;WITH TotalesConcepto AS
     (
         SELECT
@@ -38,7 +38,7 @@ BEGIN
         GROUP BY e.expensa_id
     ),
 
-    /* 2) Clasifico cada pago en parte ordinaria y extraordinaria segÃºn esa composiciÃ³n */
+    /* 2) Clasifico cada pago en parte ordinaria y extraordinaria según esa composición */
     PagosClasificados AS
     (
         SELECT
@@ -72,13 +72,13 @@ BEGIN
             ON t.expensa_id = e.expensa_id
         WHERE p.borrado = 0
           AND e.borrado = 0
-          AND p.estado IN ('APLICADO','ASOCIADO')   -- podÃ©s ajustar acÃ¡
+          AND p.estado IN ('APLICADO','ASOCIADO')   -- podés ajustar acá
           AND p.fecha >= @FechaDesde
           AND p.fecha < DATEADD(DAY, 1, @FechaHasta)
           AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
     ),
 
-    /* 3) Agrupo por semana (aÃ±o + ISO_WEEK) y sumo recaudaciÃ³n */
+    /* 3) Agrupo por semana (año + ISO_WEEK) y sumo recaudación */
     PorSemana AS
     (
         SELECT
@@ -128,10 +128,6 @@ BEGIN
 
     IF @Anio IS NULL SET @Anio = YEAR(GETDATE());
 
-    -- Abrimos la llave para poder usar DecryptByKey dentro del PIVOT
-    OPEN SYMMETRIC KEY Key_DatosSensibles
-        DECRYPTION BY CERTIFICATE Cert_DatosSensibles;
-
     -------------------------------------------------------------
     -- 1. Columnas fijas con nombres de meses
     -------------------------------------------------------------
@@ -140,7 +136,7 @@ BEGIN
         '[Julio],[Agosto],[Septiembre],[Octubre],[Noviembre],[Diciembre]';
 
     -------------------------------------------------------------
-    -- 2. SQL dinÃ¡mico
+    -- 2. SQL dinámico
     -------------------------------------------------------------
     DECLARE @sql NVARCHAR(MAX);
 
@@ -168,8 +164,7 @@ BEGIN
             p.importe
         FROM prod.Pago p
         INNER JOIN prod.Persona per
-            ON  CONVERT(CHAR(22), DecryptByKey(per.cbu_cvu_enc)) 
-             = CONVERT(CHAR(22), DecryptByKey(p.cbu_cvu_origen_enc))
+            ON per.cbu_cvu = p.cbu_cvu_origen
            AND per.borrado = 0
         INNER JOIN prod.Titularidad t
             ON t.persona_id = per.persona_id
@@ -201,16 +196,13 @@ BEGIN
     ';
 
     -------------------------------------------------------------
-    -- 3. Ejecutar SQL con parÃ¡metros
+    -- 3. Ejecutar SQL con parámetros
     -------------------------------------------------------------
     EXEC sp_executesql
         @sql,
         N'@ConsorcioId INT, @Anio INT',
         @ConsorcioId = @ConsorcioId,
         @Anio = @Anio;
-
-    -- Cerramos la llave
-    CLOSE SYMMETRIC KEY Key_DatosSensibles;
 END;
 GO
 
@@ -309,14 +301,14 @@ BEGIN
             ON t.expensa_id = e.expensa_id
         WHERE p.borrado = 0
           AND e.borrado = 0
-          AND p.estado IN ('APLICADO','ASOCIADO')   -- pagos vÃ¡lidos
+          AND p.estado IN ('APLICADO','ASOCIADO')   -- pagos válidos
           AND p.fecha >= @FechaDesde
           AND p.fecha < DATEADD(DAY, 1, @FechaHasta)
           AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
     ),
 
     --------------------------------------------------------------------
-    -- 3) Agrego por perÃ­odo (AÃ±o/Mes) y procedencia
+    -- 3) Agrego por período (Año/Mes) y procedencia
     --------------------------------------------------------------------
     PorPeriodo AS
     (
@@ -480,10 +472,6 @@ BEGIN
     IF @FechaDesde IS NULL SET @FechaDesde = '2000-01-01';
     IF @FechaHasta IS NULL SET @FechaHasta = '2100-12-31';
 
-    -- Abrimos llave para descifrar datos personales
-    OPEN SYMMETRIC KEY Key_DatosSensibles
-        DECRYPTION BY CERTIFICATE Cert_DatosSensibles;
-
     --------------------------------------------------------------------
     -- 1) Totales de coeficiente por consorcio (para prorratear la mora)
     --------------------------------------------------------------------
@@ -500,6 +488,7 @@ BEGIN
 
     --------------------------------------------------------------------
     -- 2) Distribuimos cada registro de Mora entre todas las UF del consorcio
+    --    según el coeficiente de cada UF
     --------------------------------------------------------------------
     MoraDistribuida AS
     (
@@ -537,10 +526,10 @@ BEGIN
             p.persona_id,
             p.nombre,
             p.apellido,
-            CONVERT(NVARCHAR(20), DecryptByKey(p.dni_enc))       AS dni,
-            CONVERT(VARCHAR(70), DecryptByKey(p.email_enc))     AS email,
-            CONVERT(NVARCHAR(20), DecryptByKey(p.telefono_enc))  AS telefono,
-            CONVERT(CHAR(22),       DecryptByKey(p.cbu_cvu_enc)) AS cbu_cvu,
+            p.email,
+            p.telefono,
+            p.dni,
+            p.cbu_cvu,
             md.consorcio_id,
             md.fecha_aplicacion,
             md.uf_id,
@@ -583,8 +572,6 @@ BEGIN
     ORDER BY total_morosidad DESC,
              mp.apellido,
              mp.nombre;
-
-    CLOSE SYMMETRIC KEY Key_DatosSensibles;
 END;
 GO
 
@@ -607,10 +594,6 @@ BEGIN
     IF @FechaDesde IS NULL SET @FechaDesde = '2000-01-01';
     IF @FechaHasta IS NULL SET @FechaHasta = '2100-12-31';
 
-    -- Abrimos la llave para poder usar DecryptByKey en el join por CBU
-    OPEN SYMMETRIC KEY Key_DatosSensibles
-        DECRYPTION BY CERTIFICATE Cert_DatosSensibles;
-
     ;WITH PagosUF AS
     (
         SELECT DISTINCT
@@ -625,8 +608,7 @@ BEGIN
             ON e.expensa_id = p.expensa_id
            AND e.borrado = 0
         INNER JOIN prod.Persona per
-            ON  CONVERT(CHAR(22), DecryptByKey(per.cbu_cvu_enc)) 
-             = CONVERT(CHAR(22), DecryptByKey(p.cbu_cvu_origen_enc))
+            ON per.cbu_cvu = p.cbu_cvu_origen
            AND per.borrado = 0
         INNER JOIN prod.Titularidad t
             ON t.persona_id = per.persona_id
@@ -677,8 +659,6 @@ BEGIN
         END AS dias_hasta_siguiente_pago
     FROM PagosConDiferencia
     ORDER BY consorcio_id, uf_id, fecha_pago;
-
-    CLOSE SYMMETRIC KEY Key_DatosSensibles;
 END;
 GO
 

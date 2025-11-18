@@ -30,8 +30,6 @@ CREATE NONCLUSTERED INDEX IX_Titularidad_UF_Tipo_Fecha
 ON prod.Titularidad (uf_id, tipo_titularidad, fecha_desde)
 INCLUDE (fecha_hasta, persona_id);
 
--- Además ya tenés el índice único por (persona_id, uf_id, fecha_desde)
-
 -- Ordinarios / Extraordinarios / Mora: se accede por expensa_id
 CREATE NONCLUSTERED INDEX IX_Ordinarios_Expensa
 ON prod.Ordinarios (expensa_id, borrado)
@@ -45,4 +43,3 @@ CREATE NONCLUSTERED INDEX IX_Mora_Expensa_Fecha
 ON prod.Mora (expensa_id, fecha_aplicacion)
 INCLUDE (importe, interes, borrado);
 
--- Persona ya tiene UNIQUE(cbu_cvu), eso sirve para joins por CBU

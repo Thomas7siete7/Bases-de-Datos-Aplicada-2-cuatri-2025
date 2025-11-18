@@ -486,22 +486,21 @@ BEGIN
   FROM Rankeado
   WHERE rn = 1;
 
-  /* ============== 5) MERGE prod.Persona (clave = CBU) ============== */
+  /* ============== 5) MERGE prod.Persona ============== */
   BEGIN TRY
     BEGIN TRAN;
 
       MERGE prod.Persona AS D
       USING (SELECT nombre, apellido, dni, email, telefono, cbu_cvu, inquilino FROM #P_best) AS S
-        ON D.cbu_cvu = S.cbu_cvu          -- <<< ahora la clave del MERGE es el CBU
+        ON D.cbu_cvu = S.cbu_cvu      
       WHEN MATCHED THEN
         UPDATE SET 
           D.nombre    = S.nombre,
           D.apellido  = S.apellido,
-          D.dni       = S.dni,            -- se actualiza el DNI según archivo
+          D.dni       = S.dni,          
           D.email     = S.email,
           D.telefono  = S.telefono,
           D.inquilino = S.inquilino
-          -- D.cbu_cvu queda igual: ya es la clave por la que matchea
       WHEN NOT MATCHED THEN
         INSERT(nombre, apellido, email, dni, telefono, cbu_cvu, inquilino)
         VALUES(S.nombre, S.apellido, S.email, S.dni, S.telefono, S.cbu_cvu, S.inquilino);
@@ -512,16 +511,6 @@ BEGIN
     IF XACT_STATE() <> 0 ROLLBACK;
     THROW;
   END CATCH;
-
-  /* ============== 6) DIAGNÓSTICO ============== */
-/*  SELECT 
-    personas_archivo_total  = (SELECT COUNT(*) FROM #P),
-    personas_filtradas_ok   = (SELECT COUNT(*) FROM #P_ok),
-    personas_dedupe_final   = (SELECT COUNT(*) FROM #P_best),
-    personas_insertadas     = (SELECT COUNT(*) FROM prod.Persona),
-    inquilinos_total        = (SELECT COUNT(*) FROM prod.Persona WHERE inquilino = 1),
-    propietarios_total      = (SELECT COUNT(*) FROM prod.Persona WHERE inquilino = 0);*/
-
 END
 GO
 
@@ -635,7 +624,7 @@ BEGIN
    AND uf.borrado = 0;
 
   /* ===============================================================
-     5) Titular esperado según archivo (Persona + UF)
+     5) Titular esperado según archivo 
         tipo_titularidad se toma de Persona.inquilino
      =============================================================== */
   IF OBJECT_ID('tempdb..#A') IS NOT NULL DROP TABLE #A;
@@ -651,7 +640,7 @@ BEGIN
    AND p.borrado = 0;
 
   /* ===============================================================
-     6) Situación actual de titularidad (vigente)
+     6) Situación actual de titularidad 
      =============================================================== */
   IF OBJECT_ID('tempdb..#Vig') IS NOT NULL DROP TABLE #Vig;
   SELECT *
@@ -693,9 +682,6 @@ BEGIN
 
   /* ===============================================================
      8) Actualizar Titularidad:
-        - Cerrar antigua cuando hay cambio (S_cambio)
-        - Insertar nueva con fecha_desde = @hoy (cambio)
-        - Insertar nueva con fecha random (primera vez S_nuevo)
      =============================================================== */
 
   DECLARE @hoy DATE = CAST(GETDATE() AS DATE);
@@ -761,16 +747,6 @@ BEGIN
     IF XACT_STATE() <> 0 ROLLBACK;
     THROW;
   END CATCH;
-
-  /* ===============================================================
-     9) Debug opcional 
-     =============================================================== */
-  --SELECT 
-  --  total_archivo      = (SELECT COUNT(*) FROM #A),
-  --  vigentes_antes     = (SELECT COUNT(*) FROM #Vig),
-  --  cambios_titular    = (SELECT COUNT(*) FROM #S_cambio),
-  --  nuevos_primera_vez = (SELECT COUNT(*) FROM #S_nuevo);
-
 END
 GO
 
@@ -1272,7 +1248,7 @@ BEGIN
       ON pc.proveedor_id = p.proveedor_id
      AND pc.consorcio_id = fc.consorcio_id
   ),
-  -- Match genérico por familia/patrones
+  -- Match genérico
   MatchGenerico AS (
     SELECT fc.expensa_id, fc.consorcio_id, fc.rubro, fc.importe, fc.periodo, pc.pc_id,
            ROW_NUMBER() OVER (
@@ -1304,7 +1280,7 @@ BEGIN
   WHERE rn = 1
     AND importe IS NOT NULL AND importe > 0;
 
-  /* 7) Insert en Ordinarios (idempotente) -------------------------------- */
+  /* 7) Insert en Ordinarios -------------------------------- */
   IF OBJECT_ID('tempdb..#INS') IS NOT NULL DROP TABLE #INS;
   CREATE TABLE #INS (gasto_ord_id INT PRIMARY KEY);
 
@@ -1349,51 +1325,6 @@ BEGIN
     IF XACT_STATE() <> 0 ROLLBACK; 
     THROW;
   END CATCH;
-
-  /* 8) DEBUG / DIAGNÓSTICO ---------------------------------------------- 
-  DECLARE @raw_rows INT       = (SELECT COUNT(*) FROM #SrvRaw);
-  DECLARE @srv_rows INT       = (SELECT COUNT(*) FROM #Srv);
-  DECLARE @srv2_rows INT      = (SELECT COUNT(*) FROM #Srv2);
-  DECLARE @srv2r_rows INT     = (SELECT COUNT(*) FROM #Srv2R);
-  DECLARE @flat_total INT     = (SELECT COUNT(*) FROM #Flat);
-  DECLARE @flatpc_total INT   = (SELECT COUNT(*) FROM #FlatPC);
-  DECLARE @inserted_ok INT    = (SELECT COUNT(*) FROM #INS);
-  DECLARE @unmatched INT      = @flat_total - @flatpc_total;
-
-  SELECT 
-    etapa                = 'RESUMEN',
-    json_leido           = @raw_rows,
-    normalizados         = @srv_rows,
-    mes_resueltos        = @srv2_rows,
-    consorcio_resueltos  = @srv2r_rows,
-    items_aplanados      = @flat_total,
-    items_matched_pc     = @flatpc_total,
-    items_unmatched_pc   = @unmatched,
-    ordinarios_insertados= @inserted_ok;
-
-  ;WITH A AS (
-    SELECT rubro, cnt = COUNT(*), monto = SUM(importe)
-    FROM #Flat
-    GROUP BY rubro
-  ),
-  M AS (
-    SELECT rubro, cnt = COUNT(*), monto = SUM(importe)
-    FROM #FlatPC
-    GROUP BY rubro
-  )
-  SELECT 
-    rubro = COALESCE(A.rubro, M.rubro),
-    aplanados_cnt   = ISNULL(A.cnt,0),
-    matched_cnt     = ISNULL(M.cnt,0),
-    unmatched_cnt   = ISNULL(A.cnt,0) - ISNULL(M.cnt,0),
-    aplanados_monto = ISNULL(A.monto,0),
-    matched_monto   = ISNULL(M.monto,0),
-    unmatched_monto = ISNULL(A.monto,0) - ISNULL(M.monto,0)
-  FROM A
-  FULL OUTER JOIN M
-    ON M.rubro = A.rubro
-  ORDER BY COALESCE(A.rubro, M.rubro);*/
-
 END
 GO
 
@@ -1442,10 +1373,6 @@ BEGIN
 
   /*=========================================================
     2) NORMALIZACIÓN ROBUSTA DE IMPORTE
-       - Soporta: "22,648.59", "211,800,00", "658.987,23",
-                 "$ 1.234,50", "ARS 2.345.678,9", etc.
-       - Paso clave: QUEDARSE SOLO CON [0-9,.-]
-       - Último separador ,/. = decimal, el resto ? miles
   =========================================================*/
   IF OBJECT_ID('tempdb..#stg') IS NOT NULL DROP TABLE #stg;
 
@@ -1719,36 +1646,6 @@ BEGIN
     IF XACT_STATE() <> 0 ROLLBACK;
     THROW;
   END CATCH;
-
-  /*=========================================================
-    8) DEBUG / RESUMEN
-  =========================================================
-  DECLARE @total_archivo INT      = (SELECT COUNT(*) FROM #raw);
-  DECLARE @ok_validos    INT      = (SELECT COUNT(*) FROM #ok);
-  DECLARE @con_consorcio INT      = (SELECT COUNT(*) FROM #matchBase WHERE consorcio_id IS NOT NULL);
-  DECLARE @sin_consorcio INT      = (SELECT COUNT(*) FROM #matchBase WHERE consorcio_id IS NULL);
-  DECLARE @ins_total     INT      = (SELECT COUNT(*) FROM #INS);
-  DECLARE @ins_asoc      INT      = (SELECT COUNT(*) FROM #INS WHERE estado = 'ASOCIADO');
-  DECLARE @ins_noasoc    INT      = (SELECT COUNT(*) FROM #INS WHERE estado = 'NO ASOCIADO');
-  DECLARE @no_ins_posib  INT      = (SELECT COUNT(*) FROM #match WHERE expensa_id IS NULL);
-
-  SELECT 
-    etapa                    = 'RESUMEN',
-    total_archivo            = @total_archivo,
-    pagos_validos_parseados  = @ok_validos,
-    pagos_con_consorcio      = @con_consorcio,
-    pagos_sin_consorcio      = @sin_consorcio,
-    insertados_total         = @ins_total,
-    insertados_asociado      = @ins_asoc,
-    insertados_no_asociado   = @ins_noasoc,
-    no_insertados_sin_expensa= @no_ins_posib;
-
-  -- Motivos de rechazo en parseo / validación
-  SELECT causa, COUNT(*) AS casos
-  FROM #rej
-  WHERE causa <> 'OK'
-  GROUP BY causa
-  ORDER BY causa;*/
 END
 GO
 
