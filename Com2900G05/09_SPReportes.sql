@@ -110,6 +110,7 @@ BEGIN
 END;
 GO
 
+
 /*
 ==============================
         REPORTE 2
@@ -126,6 +127,10 @@ BEGIN
     SET NOCOUNT ON;
 
     IF @Anio IS NULL SET @Anio = YEAR(GETDATE());
+
+    -- Abrimos la llave para poder usar DecryptByKey dentro del PIVOT
+    OPEN SYMMETRIC KEY Key_DatosSensibles
+        DECRYPTION BY CERTIFICATE Cert_DatosSensibles;
 
     -------------------------------------------------------------
     -- 1. Columnas fijas con nombres de meses
@@ -163,7 +168,8 @@ BEGIN
             p.importe
         FROM prod.Pago p
         INNER JOIN prod.Persona per
-            ON per.cbu_cvu = p.cbu_cvu_origen
+            ON  CONVERT(CHAR(22), DecryptByKey(per.cbu_cvu_enc)) 
+             = CONVERT(CHAR(22), DecryptByKey(p.cbu_cvu_origen_enc))
            AND per.borrado = 0
         INNER JOIN prod.Titularidad t
             ON t.persona_id = per.persona_id
@@ -202,6 +208,9 @@ BEGIN
         N'@ConsorcioId INT, @Anio INT',
         @ConsorcioId = @ConsorcioId,
         @Anio = @Anio;
+
+    -- Cerramos la llave
+    CLOSE SYMMETRIC KEY Key_DatosSensibles;
 END;
 GO
 
@@ -471,6 +480,10 @@ BEGIN
     IF @FechaDesde IS NULL SET @FechaDesde = '2000-01-01';
     IF @FechaHasta IS NULL SET @FechaHasta = '2100-12-31';
 
+    -- Abrimos llave para descifrar datos personales
+    OPEN SYMMETRIC KEY Key_DatosSensibles
+        DECRYPTION BY CERTIFICATE Cert_DatosSensibles;
+
     --------------------------------------------------------------------
     -- 1) Totales de coeficiente por consorcio (para prorratear la mora)
     --------------------------------------------------------------------
@@ -487,7 +500,6 @@ BEGIN
 
     --------------------------------------------------------------------
     -- 2) Distribuimos cada registro de Mora entre todas las UF del consorcio
-    --    según el coeficiente de cada UF
     --------------------------------------------------------------------
     MoraDistribuida AS
     (
@@ -525,10 +537,10 @@ BEGIN
             p.persona_id,
             p.nombre,
             p.apellido,
-            p.email,
-            p.telefono,
-            p.dni,
-            p.cbu_cvu,
+            CONVERT(NVARCHAR(20), DecryptByKey(p.dni_enc))       AS dni,
+            CONVERT(VARCHAR(70), DecryptByKey(p.email_enc))     AS email,
+            CONVERT(NVARCHAR(20), DecryptByKey(p.telefono_enc))  AS telefono,
+            CONVERT(CHAR(22),       DecryptByKey(p.cbu_cvu_enc)) AS cbu_cvu,
             md.consorcio_id,
             md.fecha_aplicacion,
             md.uf_id,
@@ -571,6 +583,8 @@ BEGIN
     ORDER BY total_morosidad DESC,
              mp.apellido,
              mp.nombre;
+
+    CLOSE SYMMETRIC KEY Key_DatosSensibles;
 END;
 GO
 
@@ -593,6 +607,10 @@ BEGIN
     IF @FechaDesde IS NULL SET @FechaDesde = '2000-01-01';
     IF @FechaHasta IS NULL SET @FechaHasta = '2100-12-31';
 
+    -- Abrimos la llave para poder usar DecryptByKey en el join por CBU
+    OPEN SYMMETRIC KEY Key_DatosSensibles
+        DECRYPTION BY CERTIFICATE Cert_DatosSensibles;
+
     ;WITH PagosUF AS
     (
         SELECT DISTINCT
@@ -607,7 +625,8 @@ BEGIN
             ON e.expensa_id = p.expensa_id
            AND e.borrado = 0
         INNER JOIN prod.Persona per
-            ON per.cbu_cvu = p.cbu_cvu_origen
+            ON  CONVERT(CHAR(22), DecryptByKey(per.cbu_cvu_enc)) 
+             = CONVERT(CHAR(22), DecryptByKey(p.cbu_cvu_origen_enc))
            AND per.borrado = 0
         INNER JOIN prod.Titularidad t
             ON t.persona_id = per.persona_id
@@ -658,6 +677,8 @@ BEGIN
         END AS dias_hasta_siguiente_pago
     FROM PagosConDiferencia
     ORDER BY consorcio_id, uf_id, fecha_pago;
+
+    CLOSE SYMMETRIC KEY Key_DatosSensibles;
 END;
 GO
 
