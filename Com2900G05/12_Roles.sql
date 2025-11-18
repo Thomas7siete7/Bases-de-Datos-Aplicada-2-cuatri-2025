@@ -55,12 +55,4 @@ CREATE ROLE rol_sistemas;
 GRANT SELECT ON DATABASE::COM2900G05 TO rol_sistemas;
 GRANT EXECUTE ON SCHEMA::prod TO rol_sistemas;
 
-/*
-==============================
-General
-==============================
-*/
-GRANT SELECT ON SCHEMA::prod TO rol_admin_general;
-GRANT SELECT ON SCHEMA::prod TO rol_admin_bancario;
-GRANT SELECT ON SCHEMA::prod TO rol_admin_operativo;
 
