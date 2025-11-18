@@ -1101,7 +1101,7 @@ BEGIN
         FROM prod.Expensa WHERE borrado = 0 ORDER BY NEWID();
 
         SET @fecha_mora = DATEADD(DAY, -1 * (ABS(CHECKSUM(NEWID())) % 90), CAST(GETDATE() AS DATE));
-        SET @interes    = CAST((ABS(CHECKSUM(NEWID())) % 20 + 5) AS DECIMAL(6,4)) / 100.0; -- 5%..24%
+        SET @interes    = CAST((ABS(CHECKSUM(NEWID())) % 5 + 2) AS DECIMAL(6,4)) / 100.0;
         SET @importe    = CAST(ABS(CHECKSUM(NEWID())) % 30000 + 500 AS DECIMAL(12,2));
 
         EXEC prod.sp_AltaMora
