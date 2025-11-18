@@ -34,35 +34,35 @@
           <AssociatedConnUserName />
           <FullPath>02_CreacionTablas.sql</FullPath>
         </FileNode>
-        <FileNode Name="03_ImportacionDeArchivos.sql">
+        <FileNode Name="03_AltaDatos.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
           <AssociatedConnUserName />
-          <FullPath>03_ImportacionDeArchivos.sql</FullPath>
+          <FullPath>03_AltaDatos.sql</FullPath>
         </FileNode>
-        <FileNode Name="04_AltaDatos.sql">
+        <FileNode Name="03A_PruebasAltas.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
           <AssociatedConnUserName />
-          <FullPath>04_AltaDatos.sql</FullPath>
+          <FullPath>03A_PruebasAltas.sql</FullPath>
         </FileNode>
-        <FileNode Name="04A_PruebasAltas.sql">
+        <FileNode Name="04_BajaDatos.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
           <AssociatedConnUserName />
-          <FullPath>04A_PruebasAltas.sql</FullPath>
+          <FullPath>04_BajaDatos.sql</FullPath>
         </FileNode>
-        <FileNode Name="05_BajaDatos.sql">
+        <FileNode Name="04A_PruebasBajas.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
           <AssociatedConnUserName />
-          <FullPath>05_BajaDatos.sql</FullPath>
+          <FullPath>04A_PruebasBajas.sql</FullPath>
         </FileNode>
-        <FileNode Name="05A_PruebasBajas.sql">
+        <FileNode Name="05_ImportacionDeArchivos.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
           <AssociatedConnUserName />
-          <FullPath>05A_PruebasBajas.sql</FullPath>
+          <FullPath>05_ImportacionDeArchivos.sql</FullPath>
         </FileNode>
         <FileNode Name="06_CreacionDeEscenacioDePrueba.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>

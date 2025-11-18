@@ -350,7 +350,7 @@ BEGIN
         consorcio_id     INT,
         consorcio_nombre VARCHAR(200),
         periodo          DATE,
-        detalle          VARCHAR(400),
+        detalle          VARCHAR(4000),
         importe          DECIMAL(12,2) NULL,
         uf_id            INT           NULL,
         uf               VARCHAR(30)   NULL,
@@ -408,7 +408,7 @@ BEGIN
     WHERE p.Deuda > 0.00;
 
     -- 8.4 LISTADO DE GASTOS ORDINARIOS (item 4)
-    --     Un registro por gasto ordinario (factura)
+    -- Un registro por TIPO de gasto ordinario
     INSERT INTO #Archivo1(
         tipo_registro, consorcio_id, consorcio_nombre, periodo,
         detalle, importe
@@ -419,20 +419,47 @@ BEGIN
         @consorcio_nombre,
         @periodo,
         CONCAT(
-            'Proveedor: ', pr.nombre,
-            ' - Tipo: ', o.tipo_gasto_ordinario,
-            ' - Ref: ', pc.referencia
+            o.tipo_gasto_ordinario,
+            ' - Detalle: ',
+            STRING_AGG(
+                CASE 
+                    -- Para tipos que contengan la palabra "BANCARIO"
+                    WHEN o.tipo_gasto_ordinario LIKE '%BANCARIO%' THEN
+                        CONCAT(
+                            pr.nombre,
+                            CASE 
+                                WHEN pc.referencia IS NOT NULL AND pc.referencia <> '' 
+                                    THEN ' (' + pc.referencia + ')'
+                                ELSE ''
+                            END
+                        )
+                    -- Para el resto se usa nro_factura, si existe
+                    ELSE
+                        CONCAT(
+                            pr.nombre,
+                            CASE 
+                                WHEN o.nro_factura IS NOT NULL AND o.nro_factura <> '' 
+                                    THEN ' (Nro factura: ' + o.nro_factura + ')'
+                                ELSE ''
+                            END
+                        )
+                END,
+                ' | '
+            ) WITHIN GROUP (ORDER BY pr.nombre, o.nro_factura)
         ) AS detalle,
-        o.importe
+        SUM(o.importe) AS importe
     FROM prod.Ordinarios o
     JOIN prod.ProveedorConsorcio pc
-      ON pc.pc_id = o.pc_id
-     AND pc.borrado = 0
+        ON pc.pc_id = o.pc_id
+        AND pc.borrado = 0
     JOIN prod.Proveedor pr
-      ON pr.proveedor_id = pc.proveedor_id
-     AND pr.borrado = 0
+        ON pr.proveedor_id = pc.proveedor_id
+        AND pr.borrado = 0
     WHERE o.expensa_id = @expensa_id
-      AND o.borrado    = 0;
+        AND o.borrado = 0
+    GROUP BY o.tipo_gasto_ordinario;
+
+
 
     -- 8.5 LISTADO DE GASTOS EXTRAORDINARIOS (item 5)
     INSERT INTO #Archivo1(
@@ -639,7 +666,6 @@ BEGIN
 
     --EXEC xp_cmdshell @cmd2;
 
-
     SELECT @expensa_id AS expensa_id;
 END;
 GO
@@ -648,3 +674,73 @@ EXEC prod.sp_GenerarExpensaYProrrateo
      @consorcio_id = 1, 
      @anio = 2025, 
      @mes  = 07;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 1, 
+     @anio = 2025, 
+     @mes  = 08;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 1, 
+     @anio = 2025, 
+     @mes  = 09;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 2, 
+     @anio = 2025, 
+     @mes  = 07;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 2, 
+     @anio = 2025, 
+     @mes  = 08;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 2, 
+     @anio = 2025, 
+     @mes  = 09;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 3, 
+     @anio = 2025, 
+     @mes  = 07;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 3, 
+     @anio = 2025, 
+     @mes  = 08;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 3, 
+     @anio = 2025, 
+     @mes  = 09;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 4, 
+     @anio = 2025, 
+     @mes  = 07;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 4, 
+     @anio = 2025, 
+     @mes  = 08;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 4, 
+     @anio = 2025, 
+     @mes  = 09;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 5, 
+     @anio = 2025, 
+     @mes  = 07;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 5, 
+     @anio = 2025, 
+     @mes  = 08;
+
+EXEC prod.sp_GenerarExpensaYProrrateo 
+     @consorcio_id = 5, 
+     @anio = 2025, 
+     @mes  = 09;
