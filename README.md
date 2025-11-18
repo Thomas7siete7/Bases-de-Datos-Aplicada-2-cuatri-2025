@@ -1,4 +1,4 @@
-# Com2900G13
+# Com2900G05
 Práctico integrador para la materia Bases de Datos Aplicadas.
 
 ## Integrantes del grupo 
