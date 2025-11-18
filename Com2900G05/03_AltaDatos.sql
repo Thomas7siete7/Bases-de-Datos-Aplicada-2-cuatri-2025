@@ -1,4 +1,4 @@
-USE Com2900G05;
+USE COM2900G05;
 GO
 
 /* =========================================
@@ -442,7 +442,7 @@ CREATE PROCEDURE prod.sp_AltaExpensa
     @consorcio_id INT,
     @anio         INT,
     @mes          INT,
-    @total        DECIMAL(12,2) = NULL,  -- se puede pasar NULL, se recalcula después
+    @total        DECIMAL(12,2),
     @dias_vto1    INT,
     @dias_vto2    INT
 AS
@@ -674,7 +674,7 @@ END
 GO
 
 /* =========================================
-   ALTA TITULARIDAD (no tiene borrado lógico)
+   ALTA TITULARIDAD
    ========================================= */
 IF OBJECT_ID('prod.sp_AltaTitularidad','P') IS NOT NULL
     DROP PROCEDURE prod.sp_AltaTitularidad;
@@ -730,7 +730,7 @@ END
 GO
 
 /* =========================================
-   ALTA PAGO (reactiva si misma transacción borrada)
+   ALTA PAGO
    ========================================= */
 IF OBJECT_ID('prod.sp_AltaPago','P') IS NOT NULL
     DROP PROCEDURE prod.sp_AltaPago;

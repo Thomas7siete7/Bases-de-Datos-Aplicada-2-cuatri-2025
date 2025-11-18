@@ -100,6 +100,24 @@
           <AssociatedConnUserName />
           <FullPath>11_Indices_reportes.sql</FullPath>
         </FileNode>
+        <FileNode Name="12_Roles.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>12_Roles.sql</FullPath>
+        </FileNode>
+        <FileNode Name="13_Encriptado.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>13_Encriptado.sql</FullPath>
+        </FileNode>
+        <FileNode Name="14_CrearUsuarios.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>
+          <AssociatedConnUserName />
+          <FullPath>14_CrearUsuarios.sql</FullPath>
+        </FileNode>
         <FileNode Name="Comprobacion_tablas.sql">
           <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:PABLO-BATTISTON:True</AssociatedConnectionMoniker>
           <AssociatedConnSrvName>PABLO-BATTISTON</AssociatedConnSrvName>

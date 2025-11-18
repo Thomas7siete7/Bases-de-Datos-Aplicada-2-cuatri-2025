@@ -1145,14 +1145,14 @@ EXEC prod.sp_CargarExpensasAleatorias
      @anio_desde = @anio_desde,
      @anio_hasta = @anio_hasta;
 
---DECLARE 
---    @anio_desde   INT = 2024,
---    @anio_hasta   INT = 2025,
---    @fecha_desdeP DATE,
---    @fecha_hastaP DATE;
+DECLARE 
+    @anio_desde   INT = 2024,
+    @anio_hasta   INT = 2025,
+    @fecha_desdeP DATE,
+    @fecha_hastaP DATE;
 
---SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
---SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
+SET @fecha_desdeP = DATEFROMPARTS(@anio_desde, 1, 1);
+SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
 PRINT '9) Cargar Pagos...';
 EXEC prod.sp_CargarPagosAleatorios 
      @cantidad    = 1000,

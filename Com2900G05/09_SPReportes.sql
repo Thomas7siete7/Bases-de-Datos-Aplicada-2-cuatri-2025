@@ -1,4 +1,4 @@
-USE Com2900G05;
+USE COM2900G05;
 GO
 
 /*

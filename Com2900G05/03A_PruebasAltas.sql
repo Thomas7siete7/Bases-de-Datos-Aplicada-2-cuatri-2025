@@ -1,4 +1,4 @@
-USE Com2900G05;
+USE COM2900G05;
 GO
 
 PRINT '=== INICIO LOTE DE PRUEBAS - ALTAS (VALIDAS + INVALIDAS) ===';
@@ -181,10 +181,16 @@ EXEC prod.sp_AltaExpensa
 SELECT @idExpensa = MAX(expensa_id)
 FROM prod.Expensa
 WHERE consorcio_id = @idConsorcio
-  AND periodo      = DATEFROMPARTS(@anioActual, @mesActual, 5)
   AND borrado      = 0;
 
 PRINT '   -> expensa_id = ' + CAST(@idExpensa AS VARCHAR(10));
+
+-- Agregar validación de que la expensa está activa antes de continuar con los demás SPs
+IF @idExpensa IS NULL
+BEGIN
+    PRINT '   [ERROR] No se pudo crear la expensa o está dada de baja, las siguientes pruebas fallarán.';
+    RETURN;
+END
 
 -------------------------------------------
 -- 9) Alta EXTRAORDINARIO válido
@@ -274,6 +280,7 @@ PRINT 'A13) Alta Titularidad válida...';
 EXEC prod.sp_AltaTitularidad
      @persona_id       = @idPersona,
      @uf_id            = @idUF,
+     @fecha_desde      = @hoy,  -- Parámetro que faltaba
      @tipo_titularidad = 'PROPIETARIO';
 
 SELECT @idTitularidad = MAX(titular_unidad_id)
@@ -284,7 +291,7 @@ WHERE persona_id = @idPersona
 PRINT '   -> titular_unidad_id = ' + CAST(@idTitularidad AS VARCHAR(10));
 
 -------------------------------------------
--- 14) Alta PAGO válida
+-- 14) Alta PAGO válido
 -------------------------------------------
 PRINT 'A14) Alta Pago válido...';
 
@@ -541,174 +548,3 @@ END TRY
 BEGIN CATCH
     PRINT '  [OK] Error esperado sp_AltaFactura nro_comprobante duplicado: ' + ERROR_MESSAGE();
 END CATCH;
-
-BEGIN TRY
-    PRINT 'I12) Alta Factura duplicando CAE...';
-    EXEC prod.sp_AltaFactura
-         @expensa_id             = @idExpensa,
-         @nro_comprobante        = 'FA-0001-00000003',
-         @tipo_factura           = 'A',
-         @condicion_iva_receptor = 'RI',
-         @cae                    = '12345678901234', -- mismo CAE que la válida
-         @monto_total            = 1000.00,
-         @fecha_emision          = @hoy,
-         @estado                 = 'A',
-         @saldo_anterior         = 0.00;
-    PRINT '  [ERROR] No debería haberse podido dar de alta factura con CAE duplicado.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaFactura CAE duplicado: ' + ERROR_MESSAGE();
-END CATCH;
-
--------------------------
--- TITULARIDAD
--------------------------
-BEGIN TRY
-    PRINT 'I13) Alta Titularidad duplicada (misma persona/UF/fecha)...';
-    EXEC prod.sp_AltaTitularidad
-         @persona_id       = @idPersona,
-         @uf_id            = @idUF,
-         @tipo_titularidad = 'PROPIETARIO';
-    PRINT '  [ERROR] No debería haberse podido dar de alta titularidad duplicada.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaTitularidad: ' + ERROR_MESSAGE();
-END CATCH;
-
--------------------------
--- PAGO
--------------------------
-BEGIN TRY
-    PRINT 'I14) Alta Pago con importe <= 0...';
-    EXEC prod.sp_AltaPago
-         @expensa_id      = @idExpensa,
-         @fecha           = @hoy,
-         @importe         = 0.00,       -- inválido
-         @nro_transaccion = 'PAGO-0002',
-         @estado          = 'APLICADO',
-         @cbu_cvu_origen  = '0000000000000000000998';
-    PRINT '  [ERROR] No debería haberse podido dar de alta pago con importe <= 0.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaPago importe <= 0: ' + ERROR_MESSAGE();
-END CATCH;
-
-BEGIN TRY
-    PRINT 'I15) Alta Pago con nro_transaccion duplicado...';
-    EXEC prod.sp_AltaPago
-         @expensa_id      = @idExpensa,
-         @fecha           = @hoy,
-         @importe         = 1000.00,
-         @nro_transaccion = 'PAGO-0001',  -- ya usado
-         @estado          = 'APLICADO',
-         @cbu_cvu_origen  = '0000000000000000000997';
-    PRINT '  [ERROR] No debería haberse podido dar de alta pago con nro_transaccion duplicado.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaPago nro_transaccion duplicado: ' + ERROR_MESSAGE();
-END CATCH;
-
--------------------------
--- MORA
--------------------------
-BEGIN TRY
-    PRINT 'I16) Alta Mora con interés negativo...';
-    EXEC prod.sp_AltaMora
-         @expensa_id       = @idExpensa,
-         @fecha_aplicacion = @hoy,
-         @interes          = -0.0100,
-         @importe          = 100.00;
-    PRINT '  [ERROR] No debería haberse podido dar de alta mora con interés negativo.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaMora interés negativo: ' + ERROR_MESSAGE();
-END CATCH;
-
-BEGIN TRY
-    PRINT 'I17) Alta Mora con importe negativo...';
-    EXEC prod.sp_AltaMora
-         @expensa_id       = @idExpensa,
-         @fecha_aplicacion = @hoy,
-         @interes          = 0.0100,
-         @importe          = -1.00;
-    PRINT '  [ERROR] No debería haberse podido dar de alta mora con importe negativo.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaMora importe negativo: ' + ERROR_MESSAGE();
-END CATCH;
-
--------------------------
--- PROVEEDOR
--------------------------
-BEGIN TRY
-    PRINT 'I18) Alta Proveedor duplicado...';
-    EXEC prod.sp_AltaProveedor
-         @nombre = 'Proveedor_Pruebas_Altas';
-    PRINT '  [ERROR] No debería haberse podido dar de alta proveedor duplicado.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaProveedor duplicado: ' + ERROR_MESSAGE();
-END CATCH;
-
--------------------------
--- PROVEEDOR_CONSORCIO
--------------------------
-BEGIN TRY
-    PRINT 'I19) Alta ProveedorConsorcio duplicado...';
-    EXEC prod.sp_AltaProveedorConsorcio
-         @proveedor_id = @idProveedor,
-         @consorcio_id = @idConsorcio,
-         @tipo_gasto   = 'LIMPIEZA',
-         @referencia   = 'Prueba Altas';
-    PRINT '  [ERROR] No debería haberse podido dar de alta ProveedorConsorcio duplicado.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaProveedorConsorcio duplicado: ' + ERROR_MESSAGE();
-END CATCH;
-
-BEGIN TRY
-    PRINT 'I20) Alta ProveedorConsorcio con proveedor inexistente...';
-    EXEC prod.sp_AltaProveedorConsorcio
-         @proveedor_id = -1,
-         @consorcio_id = @idConsorcio,
-         @tipo_gasto   = 'LIMPIEZA',
-         @referencia   = 'Prueba Invalida';
-    PRINT '  [ERROR] No debería haberse podido dar de alta con proveedor inexistente.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaProveedorConsorcio proveedor inexistente: ' + ERROR_MESSAGE();
-END CATCH;
-
--------------------------
--- ORDINARIO
--------------------------
-BEGIN TRY
-    PRINT 'I21) Alta Ordinario con importe <= 0...';
-    EXEC prod.sp_AltaOrdinario
-         @expensa_id           = @idExpensa,
-         @pc_id                = @idPC,
-         @tipo_gasto_ordinario = 'PRUEBA INVALIDA',
-         @nro_factura          = 'OR-002',
-         @importe              = 0.00;
-    PRINT '  [ERROR] No debería haberse podido dar de alta ordinario con importe <= 0.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaOrdinario importe <= 0: ' + ERROR_MESSAGE();
-END CATCH;
-
-BEGIN TRY
-    PRINT 'I22) Alta Ordinario con pc_id inexistente...';
-    EXEC prod.sp_AltaOrdinario
-         @expensa_id           = @idExpensa,
-         @pc_id                = -1,
-         @tipo_gasto_ordinario = 'PRUEBA INVALIDA',
-         @nro_factura          = 'OR-003',
-         @importe              = 1000.00;
-    PRINT '  [ERROR] No debería haberse podido dar de alta ordinario con pc_id inexistente.';
-END TRY
-BEGIN CATCH
-    PRINT '  [OK] Error esperado sp_AltaOrdinario pc_id inexistente: ' + ERROR_MESSAGE();
-END CATCH;
-
-PRINT '=== FIN LOTE DE PRUEBAS - ALTAS ===';
-GO

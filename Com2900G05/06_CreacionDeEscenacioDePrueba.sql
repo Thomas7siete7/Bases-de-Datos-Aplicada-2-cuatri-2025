@@ -1,4 +1,4 @@
-USE Com2900G05;
+USE COM2900G05;
 GO
 
 IF OBJECT_ID('prod.sp_CargarConsorciosPruebaAccesorios','P') IS NOT NULL
