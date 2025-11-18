@@ -1,5 +1,5 @@
 # Com2900G13
-#Práctico integrador para la materia Bases de Datos Aplicadas.
+# Práctico integrador para la materia Bases de Datos Aplicadas.
 
 Thomas Marín (42496610) - Thomas7siete7
 
