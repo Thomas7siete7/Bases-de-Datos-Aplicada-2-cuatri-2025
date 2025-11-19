@@ -1,8 +1,6 @@
 USE COM2900G05;
 GO
 
--- Crear los esquemas necesarios
-
 IF EXISTS (SELECT * FROM sys.schemas WHERE name = 'prod')
 BEGIN
     DECLARE @schema SYSNAME = 'prod';
@@ -26,7 +24,7 @@ BEGIN
     WHERE s.name = @schema;
 
     ----------------------------------------------------------
-    -- Eliminar funciones (FN, TF, IF)
+    -- Eliminar funciones
     ----------------------------------------------------------
     SELECT @sql = @sql + N'DROP FUNCTION [' + s.name + '].[' + o.name + '];' + CHAR(13)
     FROM sys.objects o
@@ -44,7 +42,7 @@ BEGIN
       AND o.type = 'P';
 
     ----------------------------------------------------------
-    -- Eliminar índices
+    -- Eliminar indices
     ----------------------------------------------------------
     SELECT @sql = @sql + 'DROP INDEX ' + QUOTENAME(i.name) + 
                      ' ON ' + QUOTENAME(s.name) + '.' + QUOTENAME(t.name) + ';' + CHAR(13)
@@ -317,7 +315,7 @@ CREATE TABLE prod.Proveedor(
   proveedor_id  INT IDENTITY(1,1) PRIMARY KEY,
   nombre        VARCHAR(200)       NOT NULL,
   borrado       BIT                NOT NULL CONSTRAINT DF_Proveedor_Anulado DEFAULT(0),
-  CONSTRAINT UQ_Proveedor_Nombre UNIQUE(nombre)   -- evita duplicados por nombre
+  CONSTRAINT UQ_Proveedor_Nombre UNIQUE(nombre)   
 );
 
 /* =========================
@@ -329,8 +327,7 @@ CREATE TABLE prod.ProveedorConsorcio(
   pc_id INT IDENTITY(1,1) PRIMARY KEY,
   proveedor_id  INT          NOT NULL REFERENCES prod.Proveedor(proveedor_id),
   consorcio_id  INT          NOT NULL REFERENCES prod.Consorcio(consorcio_id),
-  tipo_gasto    VARCHAR(80)  NOT NULL,           -- ?GASTOS BANCARIOS?, ?SERVICIOS PUBLICOS?, etc.
-  referencia    VARCHAR(80)  NULL,               -- ?Cuenta 195329?, ?Limptech?, etc.
+  tipo_gasto    VARCHAR(80)  NOT NULL,          
   borrado       BIT          NOT NULL CONSTRAINT DF_ProveedorConsorcio_Anulado DEFAULT(0),
   CONSTRAINT UQ_ProvCons UNIQUE(proveedor_id, consorcio_id, tipo_gasto, referencia)
 );
@@ -396,7 +393,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @json NVARCHAR(4000);  -- o VARCHAR(8000), pero NO MAX
+    DECLARE @json NVARCHAR(4000);  
     DECLARE @obj  INT;
     DECLARE @url  NVARCHAR(200);
 
@@ -450,13 +447,13 @@ BEGIN
     END;
 
     -----------------------------------------------------
-    -- 3) API OK ? 5.º día hábil REAL con feriados
+    -- 3) API OK ? 5to día hábil REAL con feriados
     -----------------------------------------------------
     ;WITH Feriados AS (
         SELECT CONVERT(date, fecha) AS fecha
         FROM OPENJSON(@json)
         WITH (fecha NVARCHAR(10) '$.fecha')
-        WHERE MONTH(CONVERT(date, fecha)) = @mes      -- solo feriados del MES
+        WHERE MONTH(CONVERT(date, fecha)) = @mes    
     ),
     DiasMes AS (
         SELECT DATEFROMPARTS(@anio, @mes, n) AS Fecha
@@ -545,14 +542,13 @@ BEGIN
             CONTINUE;
         END;
 
-        -- Si hay feriados cargados, también evito esos días
         IF EXISTS (SELECT 1 FROM @Feriados f WHERE f.fecha = @fecha_out)
         BEGIN
             SET @fecha_out = DATEADD(DAY, 1, @fecha_out);
             CONTINUE;
         END;
 
-        BREAK;  -- es día hábil
+        BREAK;
     END;
 END;
 GO

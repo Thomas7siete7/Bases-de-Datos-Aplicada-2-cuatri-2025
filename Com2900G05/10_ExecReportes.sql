@@ -123,7 +123,7 @@ EXEC prod.Reporte_RecaudacionPorProcedenciaPeriodo
 -- Consorcio 1
 
 EXEC prod.Reporte_5Meses_MayoresGastosIngresos
-     @ConsorcioId = 1,
+     @ConsorcioId = NULL,
      @FechaDesde  = '2023-01-01',
      @FechaHasta  = '2025-12-31';
 

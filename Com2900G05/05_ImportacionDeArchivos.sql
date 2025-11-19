@@ -34,7 +34,6 @@ BEGIN
         ''SELECT * FROM [Consorcios$]''
     );';
 
-  --PRINT @sql;
   EXEC(@sql);
 
   BEGIN TRY
@@ -94,7 +93,7 @@ BEGIN
          ''SELECT F1, F2, F3, F4 FROM [Proveedores$B:E]'')
   WHERE F4 <> ''Nombre del consorcio''
         AND LEN(LTRIM(RTRIM(F1))) > 0;';
-  -- Ejecutar el SQL dinámico para cargar los datos
+
   EXEC(@sql);
 
   BEGIN TRY
@@ -144,7 +143,7 @@ IF OBJECT_ID('prod.sp_ImportarUF_TXT','P') IS NOT NULL
 GO
 
 CREATE PROCEDURE prod.sp_ImportarUF_TXT
-    @path NVARCHAR(400)  -- Ruta al TXT (TAB + CRLF)
+    @path NVARCHAR(400)  
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -168,7 +167,7 @@ BEGIN
     DECLARE @sql NVARCHAR(MAX), @p NVARCHAR(400);
     SET @p = REPLACE(@path, '''', '''''');
 
-    /* 2) BULK (CRLF) */
+    -- 2) BULK 
     SET @sql = N'
     BULK INSERT #UF
     FROM ' + QUOTENAME(@p,'''') + N'
@@ -261,7 +260,7 @@ BEGIN
                 AND F.depto = LEFT(R.Departamento,1)
           );
 
-        /* 5) MAPEO persistente (#MAP en vez de CTE) */
+        /* 5) MAPEO persistente */
         IF OBJECT_ID('tempdb..#MAP') IS NOT NULL DROP TABLE #MAP;
 
         SELECT 
@@ -1105,7 +1104,6 @@ BEGIN
       FROM #Tot
       WHERE id = @id;
 
-      -- Ajustar vencimiento1
       IF @vto1 IS NOT NULL
       BEGIN
           SET @ajustada = NULL;
@@ -1119,7 +1117,6 @@ BEGIN
            WHERE id = @id;
       END;
 
-      -- Ajustar vencimiento2
       IF @vto2 IS NOT NULL
       BEGIN
           SET @ajustada = NULL;
@@ -1178,7 +1175,7 @@ BEGIN
   JOIN prod.Expensa e
     ON e.consorcio_id = r.consorcio_id
    AND YEAR(e.periodo)  = @anio
-   AND MONTH(e.periodo) = r.mes_num      -- ? Matchea por año/mes, no por día
+   AND MONTH(e.periodo) = r.mes_num  
   CROSS APPLY (VALUES
     ('BANCARIOS',                r.BANCARIOS),
     ('LIMPIEZA',                 r.LIMPIEZA),
@@ -1386,9 +1383,9 @@ BEGIN
       TRY_CONVERT(BIGINT, id_pago_txt) AS id_pago,
 
       COALESCE(
-        TRY_CONVERT(date, fecha_txt, 103),   -- dd/mm/yyyy
-        TRY_CONVERT(date, fecha_txt, 120),   -- yyyy-mm-dd hh:mi:ss
-        TRY_CONVERT(date, fecha_txt)        -- fallback
+        TRY_CONVERT(date, fecha_txt, 103), 
+        TRY_CONVERT(date, fecha_txt, 120),   
+        TRY_CONVERT(date, fecha_txt)        
       ) AS fecha,
 
       CASE
@@ -1399,7 +1396,7 @@ BEGIN
       valor_txt AS v0
     FROM #raw
   ),
-  -- Me quedo únicamente con dígitos, coma, punto y signo menos
+
   FILT AS (
     SELECT
       n.*,
@@ -1446,7 +1443,7 @@ BEGIN
   VNUM AS (
     SELECT
       v.*,
-      -- saco todos los separadores de miles, dejo solo '#'
+
       v_clean = REPLACE(REPLACE(v.v_mark, ',', ''), '.', '')
     FROM VMARK v
   )
@@ -1497,7 +1494,7 @@ BEGIN
     t.titular_unidad_id,
     uf.uf_id,
     uf.consorcio_id,
-    -- periodo lógico del pago: primer día del mes de la fecha de pago
+
     periodo = DATEFROMPARTS(YEAR(o.fecha), MONTH(o.fecha), 1),
     e.expensa_id
   INTO #matchBase

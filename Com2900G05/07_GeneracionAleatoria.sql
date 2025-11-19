@@ -36,12 +36,12 @@ BEGIN
                          + ' '
                          + CAST(ABS(CHECKSUM(NEWID())) % 400 + 1 AS VARCHAR(4));
 
-        -- Capacidad razonable de UF por consorcio: 8..40
+        -- Capacidad razonable de UF por consorcio
         SET @cant_unidades = ABS(CHECKSUM(NEWID())) % 33 + 8;
 
         -- m2 totales: 40..90 m2 promedio por unidad
         DECLARE @m2_promedio INT;
-        SET @m2_promedio  = ABS(CHECKSUM(NEWID())) % 51 + 40; -- 40..90
+        SET @m2_promedio  = ABS(CHECKSUM(NEWID())) % 51 + 40;
         SET @cant_m2_total = @cant_unidades * @m2_promedio;
 
         EXEC prod.sp_AltaConsorcio
@@ -238,7 +238,7 @@ BEGIN
              @piso,
              @depto,
              @cant_m2,
-             0;  -- coeficiente se recalcula en el SP de negocio
+             0;  
 
         SET @creadas += 1;
     END
@@ -406,9 +406,9 @@ BEGIN
         @dias_vto1    INT,
         @dias_vto2    INT;
 
-    -- podés fijarlos o sortearlos un poco, pero siempre que vto2 >= vto1
-    SET @dias_vto1 = 10;   -- 10 días después del 5° hábil
-    SET @dias_vto2 = 20;   -- 20 días después del 5° hábil
+
+    SET @dias_vto1 = 10; 
+    SET @dias_vto2 = 20;  
 
     WHILE @creadas < @cantidad AND @intentos < @max_intentos
     BEGIN
@@ -438,7 +438,8 @@ BEGIN
             SET @creadas += 1;
         END TRY
         BEGIN CATCH
-            -- conflictos de período/consorcio u otros errores: ignorar e intentar otra combinación
+            IF XACT_STATE() <> 0 ROLLBACK;
+        THROW;
         END CATCH;
     END
 
@@ -517,7 +518,6 @@ BEGIN
     BEGIN
         SET @intentos += 1;
 
-        -- proveedor y consorcio aleatorios
         SELECT TOP 1 @proveedor_id = proveedor_id
         FROM prod.Proveedor
         WHERE borrado = 0
@@ -541,7 +541,7 @@ BEGIN
               AND pc.consorcio_id = @consorcio_id
               AND pc.borrado = 0
         )
-            CONTINUE;   -- ya existe esta pareja, probá otra
+            CONTINUE; 
 
         SET @tipo_gasto = (SELECT TOP 1 v FROM (VALUES
                             ('LIMPIEZA'),
@@ -568,7 +568,8 @@ BEGIN
             SET @creadas += 1;
         END TRY
         BEGIN CATCH
-            -- otros errores de negocio/constraint: se ignoran y se intenta otra combinación
+            IF XACT_STATE() <> 0 ROLLBACK;
+                THROW;
         END CATCH;
     END
 
@@ -785,7 +786,8 @@ BEGIN
             SET @creadas += 1;
         END TRY
         BEGIN CATCH
-            -- conflictos de negocio (sin titularidad vigente, etc.) -> se ignoran
+            IF XACT_STATE() <> 0 ROLLBACK;
+                THROW;
         END CATCH;
     END
 END;
@@ -812,7 +814,6 @@ BEGIN
 
     ----------------------------------------------------------------
     -- 1) Pool de combinaciones válidas expensa + categoría
-    --    (no repetir misma categoría en la misma expensa/mes)
     ----------------------------------------------------------------
     ;WITH Categorias AS (
         SELECT 'Refacción de hall'          AS categoria UNION ALL
@@ -874,11 +875,6 @@ BEGIN
     ORDER BY cand.rn;
 
     DECLARE @insertadas INT = @@ROWCOUNT;
-
-    --PRINT 'sp_CargarExtraordinariosAleatorios -> Solicitados: '
-    --      + CAST(@cantidad AS VARCHAR(10))
-    --      + ' / Insertados: '
-    --      + CAST(@insertadas AS VARCHAR(10));
 END;
 GO
 
@@ -904,11 +900,6 @@ BEGIN
         RETURN;
     END;
 
-    ----------------------------------------------------------------
-    -- 1) Pool de combinaciones válidas expensa + pc_id/tipo_gasto
-    --    Filtro estricto: El candidato se excluye si ya existe un gasto
-    --    para ESE PROVEEDOR o para ESE TIPO DE GASTO en la expensa.
-    ----------------------------------------------------------------
     ;WITH Candidatos AS (
         SELECT 
             e.expensa_id,
@@ -917,17 +908,17 @@ BEGIN
             pc.tipo_gasto
         FROM prod.Expensa e
         INNER JOIN prod.ProveedorConsorcio pc 
-            ON e.consorcio_id = pc.consorcio_id -- Sólo proveedores del consorcio de la expensa
+            ON e.consorcio_id = pc.consorcio_id 
         WHERE e.borrado = 0
           AND pc.borrado = 0
-          AND NOT EXISTS ( -- CLÁUSULA DE EXCLUSIÓN COMBINADA (Tipo Gasto OR Proveedor)
+          AND NOT EXISTS ( 
                 SELECT 1
                 FROM prod.Ordinarios o
                 WHERE o.expensa_id = e.expensa_id
                   AND o.borrado    = 0
                   AND (
-                      o.pc_id = pc.pc_id -- Prohíbe si el pc_id ya existe en esta expensa
-                      OR o.tipo_gasto_ordinario = pc.tipo_gasto -- Prohíbe si el tipo de gasto ya existe en esta expensa (sin importar el pc_id)
+                      o.pc_id = pc.pc_id 
+                      OR o.tipo_gasto_ordinario = pc.tipo_gasto 
                   )
           )
     ),
@@ -958,13 +949,12 @@ BEGIN
         cand.tipo_gasto,
         calc.nro_factura,
         calc.importe,
-        0 -- borrado
+        0
     FROM CandidatosFinal cand
     CROSS APPLY (
-        -- Generación de valores aleatorios
+
         SELECT
             CAST(ABS(CHECKSUM(NEWID())) % 100000 + 1000 AS DECIMAL(12,2)) AS importe,
-            -- Simulación de nro_factura
             'OR-' + RIGHT('000000' + CAST(cand.rn AS VARCHAR(6)), 6)
             + '-' + RIGHT('0000' + CAST(ABS(CHECKSUM(NEWID())) % 10000 AS VARCHAR(4)), 4) AS nro_factura
     ) calc
@@ -1054,7 +1044,8 @@ BEGIN
                  @saldo_anterior;
         END TRY
         BEGIN CATCH
-            -- conflicto de nro_comprobante o CAE: se ignora este intento
+            IF XACT_STATE() <> 0 ROLLBACK;
+                THROW;
         END CATCH;
 
         SET @i += 1;
@@ -1155,7 +1146,7 @@ SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
 --SET @fecha_hastaP = DATEFROMPARTS(@anio_hasta, 12, 31);
 --PRINT '9) Cargar Pagos...';
 EXEC prod.sp_CargarPagosAleatorios 
-     @cantidad    = 1000,
+     @cantidad    = 10000,
      @fecha_desde = @fecha_desdeP,
      @fecha_hasta = @fecha_hastaP;
 
@@ -1212,4 +1203,4 @@ PRINT '13) Cargar Moras...';
 EXEC prod.sp_CargarMorasAleatorias @cantidad = 10;
 
 --PRINT '=== FIN LOTE DE PRUEBAS - ALTAS ALEATORIAS ===';
---GO
+

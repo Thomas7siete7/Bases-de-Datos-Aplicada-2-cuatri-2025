@@ -126,7 +126,7 @@ CREAR VISTA PARA VER DATOS CIFRADOS
 */
 
 IF OBJECT_ID('prod.vw_PersonaDescifrada','V') IS NOT NULL
-    DROP PROCEDURE prod.sp_AltaExpensa;
+    DROP PROCEDURE prod.vw_PersonaDescifrada;
 GO
 CREATE VIEW prod.vw_PersonaDescifrada
 AS

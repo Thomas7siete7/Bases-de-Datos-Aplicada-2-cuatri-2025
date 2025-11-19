@@ -408,7 +408,6 @@ BEGIN
     WHERE p.Deuda > 0.00;
 
     -- 8.4 LISTADO DE GASTOS ORDINARIOS (item 4)
-    -- Un registro por TIPO de gasto ordinario
     INSERT INTO #Archivo1(
         tipo_registro, consorcio_id, consorcio_nombre, periodo,
         detalle, importe
@@ -423,7 +422,6 @@ BEGIN
             ' - Detalle: ',
             STRING_AGG(
                 CASE 
-                    -- Para tipos que contengan la palabra "BANCARIO"
                     WHEN o.tipo_gasto_ordinario LIKE '%BANCARIO%' THEN
                         CONCAT(
                             pr.nombre,
@@ -433,7 +431,6 @@ BEGIN
                                 ELSE ''
                             END
                         )
-                    -- Para el resto se usa nro_factura, si existe
                     ELSE
                         CONCAT(
                             pr.nombre,
@@ -618,7 +615,7 @@ BEGIN
     WHERE e.expensa_id = @expensa_id;
 
     --    ------------------------------------------------------------------
-    ---- 11) Generar CSV con BCP (requiere xp_cmdshell habilitado)
+    ---- 11) Intento de generar CSV con BCP (requiere xp_cmdshell habilitado)
     --------------------------------------------------------------------
     --DECLARE 
     --    @basePath  NVARCHAR(260) = N'C:/Bases-de-Datos-Aplicada-2-cuatri-2025/Expensas_Generadas/',   -- AJUSTAR RUTA

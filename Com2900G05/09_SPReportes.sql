@@ -72,13 +72,13 @@ BEGIN
             ON t.expensa_id = e.expensa_id
         WHERE p.borrado = 0
           AND e.borrado = 0
-          AND p.estado IN ('APLICADO','ASOCIADO')   -- podés ajustar acá
+          AND p.estado IN ('APLICADO','ASOCIADO') 
           AND p.fecha >= @FechaDesde
           AND p.fecha < DATEADD(DAY, 1, @FechaHasta)
           AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
     ),
 
-    /* 3) Agrupo por semana (año + ISO_WEEK) y sumo recaudación */
+    /* 3) Agrupo por semana y sumo recaudación */
     PorSemana AS
     (
         SELECT
@@ -301,7 +301,7 @@ BEGIN
             ON t.expensa_id = e.expensa_id
         WHERE p.borrado = 0
           AND e.borrado = 0
-          AND p.estado IN ('APLICADO','ASOCIADO')   -- pagos válidos
+          AND p.estado IN ('APLICADO','ASOCIADO') 
           AND p.fecha >= @FechaDesde
           AND p.fecha < DATEADD(DAY, 1, @FechaHasta)
           AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
@@ -374,17 +374,14 @@ BEGIN
             SUM(COALESCE(m.importe, 0))             AS gastos_mora
         FROM prod.Expensa e
         LEFT JOIN prod.Ordinarios o
-            ON o.expensa_id = e.expensa_id
-           AND o.borrado = 0
+            ON o.expensa_id = e.expensa_id AND o.borrado = 0
         LEFT JOIN prod.Extraordinarios ex
-            ON ex.expensa_id = e.expensa_id
-           AND ex.borrado = 0
+            ON ex.expensa_id = e.expensa_id AND ex.borrado = 0
         LEFT JOIN prod.Mora m
-            ON m.expensa_id = e.expensa_id
-           AND m.borrado = 0
+            ON m.expensa_id = e.expensa_id AND m.borrado = 0
         WHERE e.borrado = 0
           AND e.periodo >= @FechaDesde
-          AND e.periodo < DATEADD(DAY, 1, @FechaHasta)
+          AND e.periodo <= @FechaHasta
           AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
         GROUP BY e.consorcio_id, YEAR(e.periodo), MONTH(e.periodo)
     ),
@@ -402,21 +399,21 @@ BEGIN
            AND p.estado IN ('APLICADO','ASOCIADO')
         WHERE e.borrado = 0
           AND e.periodo >= @FechaDesde
-          AND e.periodo < DATEADD(DAY, 1, @FechaHasta)
+          AND e.periodo <= @FechaHasta
           AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
         GROUP BY e.consorcio_id, YEAR(e.periodo), MONTH(e.periodo)
     )
     SELECT
-        COALESCE(g.consorcio_id, i.consorcio_id) AS consorcio_id,
-        COALESCE(g.Anio,        i.Anio)          AS Anio,
-        COALESCE(g.Mes,         i.Mes)           AS Mes,
-        COALESCE(g.gastos_ordinarios, 0)         AS gastos_ordinarios,
-        COALESCE(g.gastos_extra,      0)         AS gastos_extra,
-        COALESCE(g.gastos_mora,       0)         AS gastos_mora,
-        COALESCE(g.gastos_ordinarios, 0)
-      + COALESCE(g.gastos_extra,      0)
-      + COALESCE(g.gastos_mora,       0)         AS total_gastos,
-        COALESCE(i.ingresos,          0)         AS ingresos
+        ISNULL(g.consorcio_id, i.consorcio_id) AS consorcio_id,
+        ISNULL(g.Anio,        i.Anio)          AS Anio,
+        ISNULL(g.Mes,         i.Mes)           AS Mes,
+        ISNULL(g.gastos_ordinarios, 0)         AS gastos_ordinarios,
+        ISNULL(g.gastos_extra,      0)         AS gastos_extra,
+        ISNULL(g.gastos_mora,       0)         AS gastos_mora,
+        ISNULL(g.gastos_ordinarios, 0)
+      + ISNULL(g.gastos_extra,      0)
+      + ISNULL(g.gastos_mora,       0)         AS total_gastos,
+        ISNULL(i.ingresos,          0)         AS ingresos
     INTO #Mensual
     FROM Gastos g
     FULL OUTER JOIN Ingresos i
@@ -424,32 +421,46 @@ BEGIN
         AND g.Anio        = i.Anio
         AND g.Mes         = i.Mes;
 
-    --------------------------------------------------------------------
-    -- 2) Top 5 meses de mayores gastos
-    --------------------------------------------------------------------
-    SELECT TOP (5)
-        consorcio_id,
-        Anio,
-        Mes,
-        gastos_ordinarios,
-        gastos_extra,
-        gastos_mora,
-        total_gastos
-    FROM #Mensual
-    WHERE total_gastos > 0
-    ORDER BY total_gastos DESC, Anio, Mes;
 
     --------------------------------------------------------------------
-    -- 3) Top 5 meses de mayores ingresos
+    -- 2) Top 5 meses distintos de mayores gastos
     --------------------------------------------------------------------
+    ;WITH G AS
+    (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                   PARTITION BY Anio, Mes
+                   ORDER BY total_gastos DESC
+               ) AS rn
+        FROM #Mensual
+        WHERE total_gastos > 0
+    )
     SELECT TOP (5)
-        consorcio_id,
-        Anio,
-        Mes,
+        consorcio_id, Anio, Mes,
+        gastos_ordinarios, gastos_extra, gastos_mora, total_gastos
+    FROM G
+    WHERE rn = 1
+    ORDER BY total_gastos DESC;
+
+    --------------------------------------------------------------------
+    -- 3) Top 5 meses distintos de mayores ingresos
+    --------------------------------------------------------------------
+    ;WITH I AS
+    (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                   PARTITION BY Anio, Mes
+                   ORDER BY ingresos DESC
+               ) AS rn
+        FROM #Mensual
+        WHERE ingresos > 0
+    )
+    SELECT TOP (5)
+        consorcio_id, Anio, Mes,
         ingresos
-    FROM #Mensual
-    WHERE ingresos > 0
-    ORDER BY ingresos DESC, Anio, Mes;
+    FROM I
+    WHERE rn = 1
+    ORDER BY ingresos DESC;
 END;
 GO
 
@@ -619,10 +630,8 @@ BEGIN
           AND p.estado IN ('APLICADO','ASOCIADO')
           AND p.fecha >= @FechaDesde
           AND p.fecha < DATEADD(DAY, 1, @FechaHasta)
-          -- titularidad vigente en la fecha del pago
           AND t.fecha_desde <= p.fecha
           AND (t.fecha_hasta IS NULL OR t.fecha_hasta >= p.fecha)
-          -- solo expensas que tengan al menos un gasto ordinario
           AND EXISTS (
                 SELECT 1
                 FROM prod.Ordinarios o

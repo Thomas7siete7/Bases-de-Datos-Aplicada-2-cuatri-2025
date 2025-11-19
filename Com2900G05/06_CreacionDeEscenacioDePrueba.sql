@@ -101,7 +101,6 @@ BEGIN
     EXEC prod.sp_AltaUnidadFuncional @consorcio_id=@c2, @piso='04', @depto='B', @cant_m2=50, @coeficiente=0;
     EXEC prod.sp_AltaUnidadFuncional @consorcio_id=@c2, @piso='05', @depto='A', @cant_m2=50, @coeficiente=0;
     EXEC prod.sp_AltaUnidadFuncional @consorcio_id=@c2, @piso='05', @depto='B', @cant_m2=50, @coeficiente=0;
-    -- No se crean unidades accesorias en este consorcio
 
 
 

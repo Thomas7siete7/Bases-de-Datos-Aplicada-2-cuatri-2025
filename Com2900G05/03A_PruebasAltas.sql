@@ -117,8 +117,8 @@ EXEC prod.sp_AltaUnidadFuncional
      @consorcio_id = @idConsorcio,
      @piso         = '01',
      @depto        = 'A',
-     @cant_m2      = 60,   -- 60 de 300, deja margen
-     @coeficiente  = 0;    -- se recalcula dentro del SP
+     @cant_m2      = 60,   
+     @coeficiente  = 0;    
 
 SELECT @idUF = MAX(uf_id)
 FROM prod.UnidadFuncional
@@ -185,7 +185,6 @@ WHERE consorcio_id = @idConsorcio
 
 PRINT '   -> expensa_id = ' + CAST(@idExpensa AS VARCHAR(10));
 
--- Agregar validación de que la expensa está activa antes de continuar con los demás SPs
 IF @idExpensa IS NULL
 BEGIN
     PRINT '   [ERROR] No se pudo crear la expensa o está dada de baja, las siguientes pruebas fallarán.';
@@ -243,7 +242,7 @@ DECLARE @fechaMora DATE = DATEADD(DAY, 30, @hoy);
 EXEC prod.sp_AltaMora
      @expensa_id       = @idExpensa,
      @fecha_aplicacion = @fechaMora,
-     @interes          = 0.0500,  -- 5%
+     @interes          = 0.0500, 
      @importe          = 2500.00;
 
 SELECT @idMora = MAX(mora_id)
@@ -280,7 +279,7 @@ PRINT 'A13) Alta Titularidad válida...';
 EXEC prod.sp_AltaTitularidad
      @persona_id       = @idPersona,
      @uf_id            = @idUF,
-     @fecha_desde      = @hoy,  -- Parámetro que faltaba
+     @fecha_desde      = @hoy,  
      @tipo_titularidad = 'PROPIETARIO';
 
 SELECT @idTitularidad = MAX(titular_unidad_id)

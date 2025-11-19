@@ -1,4 +1,4 @@
-USE COM2900G05;
+USE Com2900G05;
 GO
 
 /*
@@ -72,7 +72,7 @@ BEGIN
             ON t.expensa_id = e.expensa_id
         WHERE p.borrado = 0
           AND e.borrado = 0
-          AND p.estado IN ('APLICADO','ASOCIADO')   -- podés ajustar acá
+          AND p.estado IN ('APLICADO','ASOCIADO')
           AND p.fecha >= @FechaDesde
           AND p.fecha < DATEADD(DAY, 1, @FechaHasta)
           AND (@ConsorcioId IS NULL OR e.consorcio_id = @ConsorcioId)
@@ -213,7 +213,6 @@ BEGIN
     CLOSE SYMMETRIC KEY Key_DatosSensibles;
 END;
 GO
-
 /*
 ==============================
         REPORTE 3
@@ -607,7 +606,6 @@ BEGIN
     IF @FechaDesde IS NULL SET @FechaDesde = '2000-01-01';
     IF @FechaHasta IS NULL SET @FechaHasta = '2100-12-31';
 
-    -- Abrimos la llave para poder usar DecryptByKey en el join por CBU
     OPEN SYMMETRIC KEY Key_DatosSensibles
         DECRYPTION BY CERTIFICATE Cert_DatosSensibles;
 
@@ -637,10 +635,8 @@ BEGIN
           AND p.estado IN ('APLICADO','ASOCIADO')
           AND p.fecha >= @FechaDesde
           AND p.fecha < DATEADD(DAY, 1, @FechaHasta)
-          -- titularidad vigente en la fecha del pago
           AND t.fecha_desde <= p.fecha
           AND (t.fecha_hasta IS NULL OR t.fecha_hasta >= p.fecha)
-          -- solo expensas que tengan al menos un gasto ordinario
           AND EXISTS (
                 SELECT 1
                 FROM prod.Ordinarios o

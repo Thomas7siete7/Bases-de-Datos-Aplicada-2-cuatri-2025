@@ -18,7 +18,6 @@ BEGIN
 
     DECLARE @id INT;
 
-    -- Existe activo ? error
     IF EXISTS (
         SELECT 1
         FROM prod.Consorcio
@@ -31,7 +30,6 @@ BEGIN
         RETURN;
     END;
 
-    -- Existe borrado ? reactivar
     SELECT @id = consorcio_id
     FROM prod.Consorcio
     WHERE nombre = @nombre
@@ -50,7 +48,6 @@ BEGIN
         RETURN;
     END;
 
-    -- No existe ? insert
     INSERT INTO prod.Consorcio(nombre, direccion, cant_unidades, cant_m2_total, borrado)
     VALUES(@nombre, @direccion, @cant_unidades, @cant_m2_total, 0);
 END
@@ -76,7 +73,6 @@ BEGIN
 
     DECLARE @id INT;
 
-    -- Existe activa ? error
     IF EXISTS (
         SELECT 1 FROM prod.Persona
         WHERE cbu_cvu = @cbu_cvu AND borrado = 0
@@ -86,7 +82,6 @@ BEGIN
         RETURN;
     END;
 
-    -- Existe borrada ? reactivar
     SELECT @id = persona_id
     FROM prod.Persona
     WHERE cbu_cvu = @cbu_cvu AND borrado = 1;
@@ -107,7 +102,6 @@ BEGIN
         RETURN;
     END;
 
-    -- No existe ? insert
     INSERT INTO prod.Persona(nombre, apellido, email, dni, telefono, cbu_cvu, inquilino, borrado)
     VALUES(@nombre, @apellido, @email, @dni, @telefono, @cbu_cvu, @inquilino, 0);
 END
@@ -196,7 +190,6 @@ BEGIN
         SET @uf_id = SCOPE_IDENTITY();
     END;
 
-    -- 5) m2 totales UF+UA, sin warnings
     ;WITH UFData AS (
         SELECT
             uf.uf_id,
@@ -226,7 +219,6 @@ BEGIN
         RETURN;
     END;
 
-        -- 6) Recalcular coeficientes con suma 100.00
     ;WITH UFData AS (
         SELECT
             uf.uf_id,
@@ -354,7 +346,6 @@ BEGIN
         SET @ua_id = SCOPE_IDENTITY();
     END;
 
-    -- 5) m2 totales UF+UA del consorcio
     ;WITH UFData AS (
         SELECT
             uf.uf_id,
@@ -384,7 +375,6 @@ BEGIN
         RETURN;
     END;
 
-       -- 6) Recalcular coeficientes con suma 100.00
     ;WITH UFData AS (
         SELECT
             uf.uf_id,
@@ -475,7 +465,7 @@ BEGIN
     SELECT TOP 1 @periodo = QuintoDiaHabil
     FROM @tQuinto;
 
-    -- Fallback: por las dudas, si no trajo nada
+
     IF @periodo IS NULL
         SET @periodo = DATEFROMPARTS(@anio, @mes, 5);
 
@@ -525,14 +515,10 @@ BEGIN
         @periodo,
         @venc1,
         @venc2,
-        ISNULL(@total, 0.00),   -- se actualizará luego
+        ISNULL(@total, 0.00),  
         0
     );
 
-    --------------------------------------------------------
-    -- 5) Devolver el ID recién creado
-    --------------------------------------------------------
-    --SELECT SCOPE_IDENTITY() AS expensa_id;
 END;
 GO
 
@@ -683,7 +669,7 @@ CREATE PROCEDURE prod.sp_AltaTitularidad
     @persona_id       INT,
     @uf_id            INT,
     @fecha_desde      DATE,
-    @tipo_titularidad VARCHAR(15)   -- 'PROPIETARIO'/'INQUILINO'
+    @tipo_titularidad VARCHAR(15)   
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -763,7 +749,6 @@ BEGIN
         RETURN;
     END;
 
-    -- Activo con ese nro_transaccion ? error
     IF EXISTS (
         SELECT 1 FROM prod.Pago
         WHERE nro_transaccion = @nro_transaccion
@@ -774,7 +759,6 @@ BEGIN
         RETURN;
     END;
 
-    -- Borrado con mismo nro_transaccion ? reactivar
     SELECT @id = pago_id
     FROM prod.Pago
     WHERE nro_transaccion = @nro_transaccion
@@ -857,7 +841,6 @@ BEGIN
 
     DECLARE @id INT;
 
-    -- Activo ? error
     IF EXISTS (
         SELECT 1
         FROM prod.Proveedor
@@ -869,7 +852,6 @@ BEGIN
         RETURN;
     END;
 
-    -- Borrado ? reactivar
     SELECT @id = proveedor_id
     FROM prod.Proveedor
     WHERE nombre = @nombre
@@ -927,7 +909,6 @@ BEGIN
         RETURN;
     END;
 
-    -- Activo ? error
     IF EXISTS (
         SELECT 1
         FROM prod.ProveedorConsorcio
@@ -942,7 +923,6 @@ BEGIN
         RETURN;
     END;
 
-    -- Borrado ? reactivar
     SELECT @id = pc_id
     FROM prod.ProveedorConsorcio
     WHERE proveedor_id = @proveedor_id
