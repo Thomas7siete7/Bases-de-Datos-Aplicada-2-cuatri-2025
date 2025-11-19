@@ -1,4 +1,8 @@
-# Bases-de-Datos-Aplicada-2-cuatri-2025
+# Com2900G05
+Práctico integrador para la materia Bases de Datos Aplicadas.
+
+## Integrantes del grupo 
+
 Thomas Marín (42496610) - Thomas7siete7
 
 Pablo Battiston (44893256) - PabloBatt
